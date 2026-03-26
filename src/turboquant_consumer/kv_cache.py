@@ -271,6 +271,9 @@ class CompressedDynamicCache:
     ) -> None:
         """Initialize the compressed KV cache wrapper.
 
+        Sets up compressors and internal storage for both compressed
+        representations and incremental decompressed buffers.
+
         Args:
             cache: A HuggingFace DynamicCache instance to wrap.
             head_dim: Dimension of each attention head. Must be even
@@ -297,6 +300,8 @@ class CompressedDynamicCache:
 
         self._compressed_keys: list[_CompressedLayer] = []
         self._compressed_values: list[_CompressedLayer] = []
+        self._decompressed_k: list[torch.Tensor | None] = []
+        self._decompressed_v: list[torch.Tensor | None] = []
         self._original_dtype: torch.dtype = torch.bfloat16
 
         # Patch cache methods
@@ -426,12 +431,12 @@ class CompressedDynamicCache:
         layer_idx: int,
         cache_kwargs: dict[str, Any] | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compress, store, and dequantize key/value states.
+        """Compress new tokens and incrementally dequantize.
 
-        Stores compressed representations permanently. Returns
-        decompressed tensors for immediate attention use. Frees the
-        previous layer's decompressed cache to limit VRAM to one
-        decompressed layer at a time.
+        Stores compressed representations permanently. Uses incremental
+        dequantization: only the NEW tokens are decompressed and appended
+        to a running buffer (avoiding re-dequantizing all cached tokens
+        at every step).
 
         Works with the ``DynamicCache.layers`` API (transformers >=4.57)
         where each layer is a ``DynamicLayer`` holding ``.keys`` and
@@ -458,19 +463,13 @@ class CompressedDynamicCache:
             while len(self.cache.layers) <= layer_idx:
                 self.cache.layers.append(self.cache.layer_class_to_replicate())
 
-        # Free previous layer's decompressed tensors to reclaim VRAM.
-        # By the time update(L) is called, layer L-1's attention is done
-        # and its decompressed tensors are only referenced by the layer.
-        if layer_idx > 0:
-            prev = layer_idx - 1
-            if prev < len(self.cache.layers):
-                prev_layer = self.cache.layers[prev]
-                if prev_layer.is_initialized:
-                    device = key_states.device
-                    prev_layer.keys = torch.empty(0, device=device)
-                    prev_layer.values = torch.empty(0, device=device)
+        # Note: decompressed buffers are NOT freed between layers.
+        # They accumulate across decode steps so each step only
+        # dequantizes the 1 new token (not all 11K+ cached tokens).
+        # VRAM savings come from compressed storage; decompressed
+        # buffers match baseline VRAM for SDPA compatibility.
 
-        # Compress new tokens to uint8 indices + fp16 norms
+        # Compress new tokens to uint8 indices + fp32 norms
         new_ck = self._compress_tensor(self.key_compressor, key_states)
         new_cv = self._compress_tensor(self.value_compressor, value_states)
 
@@ -486,14 +485,37 @@ class CompressedDynamicCache:
                 self._compressed_values[layer_idx], new_cv
             )
 
-        # Dequantize full layer for attention (ephemeral — freed on next
-        # layer's update call)
-        decompressed_k = self._dequantize_layer(
-            self.key_compressor, self._compressed_keys[layer_idx]
-        )
-        decompressed_v = self._dequantize_layer(
-            self.value_compressor, self._compressed_values[layer_idx]
-        )
+        # Incremental dequantization: only decompress the NEW tokens
+        # and cat onto a running buffer. Avoids re-dequantizing all 11K+
+        # cached tokens at every layer at every decode step.
+        new_k_decompressed = self._dequantize_layer(self.key_compressor, new_ck)
+        new_v_decompressed = self._dequantize_layer(self.value_compressor, new_cv)
+
+        # Extend buffer lists if needed
+        while len(self._decompressed_k) <= layer_idx:
+            self._decompressed_k.append(None)
+            self._decompressed_v.append(None)
+
+        # Cat onto running buffer (or initialize on first call)
+        if self._decompressed_k[layer_idx] is None:
+            self._decompressed_k[layer_idx] = new_k_decompressed
+            self._decompressed_v[layer_idx] = new_v_decompressed
+        else:
+            prev_k = self._decompressed_k[layer_idx]
+            prev_v = self._decompressed_v[layer_idx]
+            assert prev_k is not None  # guaranteed by the if-branch above
+            assert prev_v is not None
+            self._decompressed_k[layer_idx] = torch.cat(
+                [prev_k, new_k_decompressed], dim=-2
+            )
+            self._decompressed_v[layer_idx] = torch.cat(
+                [prev_v, new_v_decompressed], dim=-2
+            )
+
+        decompressed_k = self._decompressed_k[layer_idx]
+        decompressed_v = self._decompressed_v[layer_idx]
+        assert decompressed_k is not None
+        assert decompressed_v is not None
 
         # Store in the DynamicLayer for len(cache) / get_seq_length compat
         layer = self.cache.layers[layer_idx]

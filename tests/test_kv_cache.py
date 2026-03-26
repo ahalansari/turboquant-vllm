@@ -329,31 +329,34 @@ class TestCompressedDynamicCache:
         assert cos_k > 0.999, f"Key cosine similarity {cos_k:.4f} too low"
         assert cos_v > 0.999, f"Value cosine similarity {cos_v:.4f} too low"
 
-    def test_previous_layer_freed(self) -> None:
-        """Decompressed tensors from previous layers should be freed."""
+    def test_decompressed_buffers_accumulate(self) -> None:
+        """Decompressed buffers persist across layers for incremental dequant."""
         from transformers import DynamicCache
 
         cache = DynamicCache()
-        _ = CompressedDynamicCache(cache, head_dim=DIM, bits=BITS)
+        cc = CompressedDynamicCache(cache, head_dim=DIM, bits=BITS)
 
         # Layer 0
         cache.update(
             torch.randn(1, 4, 10, DIM), torch.randn(1, 4, 10, DIM), layer_idx=0
         )
-        layer0_keys = cache.layers[0].keys
-        assert layer0_keys is not None
-        assert layer0_keys.numel() > 0  # Layer 0 is decompressed
+        l0_keys = cache.layers[0].keys
+        assert l0_keys is not None
+        assert l0_keys.numel() > 0
 
-        # Layer 1 should free layer 0's decompressed data
+        # Layer 1 — layer 0's buffer should still exist (incremental dequant)
         cache.update(
             torch.randn(1, 4, 10, DIM), torch.randn(1, 4, 10, DIM), layer_idx=1
         )
-        layer0_keys_after = cache.layers[0].keys
-        layer1_keys = cache.layers[1].keys
-        assert layer0_keys_after is not None
-        assert layer0_keys_after.numel() == 0  # Layer 0 freed
-        assert layer1_keys is not None
-        assert layer1_keys.numel() > 0  # Layer 1 is decompressed
+        l0_after = cache.layers[0].keys
+        l1_keys = cache.layers[1].keys
+        assert l0_after is not None
+        assert l0_after.numel() > 0  # Not freed
+        assert l1_keys is not None
+        assert l1_keys.numel() > 0
+
+        # Compressed storage should also exist
+        assert len(cc._compressed_keys) == 2
 
 
 BITS_4 = 4

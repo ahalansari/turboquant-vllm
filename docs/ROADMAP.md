@@ -77,24 +77,34 @@ on consumer GPUs (RTX 4090, 24 GB VRAM) with Molmo2 vision-language models.
 
 ---
 
-## In Progress
+## Next Up
 
-### P3: Triton fused dequant-attention kernel
+### P3: Incremental dequantization (eliminate decode overhead)
 
-**Goal:** Fuse dequantization with attention computation to avoid materializing full decompressed tensors.
+**Goal:** Eliminate the 3.36x decode overhead by dequantizing only NEW tokens instead of the entire cache at every layer at every step.
 
-**Why:** Current `CompressedDynamicCache` dequantizes the ENTIRE cache at every layer at every generation step (11K+ vectors through a 128x128 matrix multiply). This is the source of the 2.35x overhead.
+**Why:** The current `CompressedDynamicCache` dequantizes ALL 11K+ cached tokens at every layer at every decode step via a 128x128 rotation matmul. The overhead is dominated by memory churn: `indices.long()` allocates 88 MB temporary tensors per layer (36 layers = 3.2 GB of allocations per decode step).
 
-**Status:**
+**Approach:** Maintain a running decompressed key buffer per layer. On each decode step:
+1. Dequantize ONLY the 1 new token (microseconds)
+2. `torch.cat` onto the running buffer
+3. Free the previous layer's buffer (same one-layer-at-a-time pattern)
+4. SDPA gets the full decompressed K without re-dequantizing 11K tokens
+
+**Expected result:** Decode overhead drops from 3.36x to ~1.0x (near baseline). SDPA precision maintained across all 36 layers (proven by unfused TQ4 path). 3.76x VRAM compression preserved.
+
+**Effort:** ~30 minutes. Changes only `CompressedDynamicCache._compressed_update()`.
+
+### P3b: Fused Triton Q@K^T kernel (validated, needs Flash Attention fusion)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Fused Q@K^T Triton kernel | **Done** | Nibble unpacking + pre-rotation trick in a single GPU pass |
-| Micro-benchmark (11K tokens) | **Done** | 17.8x speedup, 1.0 cosine similarity vs unfused reference |
-| Single-layer Molmo2-4B integration | **Done** | Produces correct output |
-| Multi-layer Molmo2 integration | **WIP** | Needs full Flash Attention-style fusion (softmax+V) |
+| Fused Q@K^T Triton kernel | **Done** | Nibble unpacking + pre-rotation trick, 17.8x speedup |
+| Micro-benchmark (11K tokens) | **Done** | 1.0 cosine similarity vs unfused reference |
+| Single-layer Molmo2-4B integration | **Done** | Correct output with fused kernel |
+| Multi-layer integration | **Blocked** | Needs Flash Attention-style fusion (see below) |
 
-**Key finding:** A fused Q@K^T-only kernel does not match SDPA precision when composed across all 36 transformer layers. The error compounds layer-over-layer. Full Flash Attention-style fusion -- Q@K^T + softmax + @V in a single kernel -- is required for multi-layer correctness.
+**Key finding:** A fused Q@K^T-only kernel does not match SDPA precision when composed across all 36 transformer layers. The fp32 kernel scores differ from bf16 SDPA scores by 0.023 cosine per layer, which compounds into degenerate output. Full Flash Attention-style fusion (Q@K^T + online softmax + V matmul in one kernel) is required for multi-layer correctness. This is a 1-2 week project using the Triton Flash Attention tutorial as scaffold.
 
 ---
 
@@ -106,9 +116,17 @@ on consumer GPUs (RTX 4090, 24 GB VRAM) with Molmo2 vision-language models.
 
 **Approach:** Run benchmark with `--model allenai/Molmo2-8B --compressed`. May need `bitsandbytes` 4-bit weight quantization to fit model + compressed cache in 24 GB.
 
-**When:** After Triton kernel integration is complete. The fused kernel eliminates the decode overhead that would otherwise dominate 8B benchmarks.
+**When:** After P3 (incremental dequant) eliminates the decode overhead.
 
-### P5: TQ3 bit-packing (research, nice-to-have)
+### P5: Flash Attention-style fused kernel (research)
+
+**Goal:** Fuse the full attention computation (Q@K^T + online softmax + V matmul) into a single Triton kernel that reads nibble-packed indices directly.
+
+**Why:** The P3b Q@K^T-only kernel achieves 17.8x on the micro-benchmark but can't maintain SDPA precision across 36 layers. A full Flash Attention-style kernel would match SDPA's online softmax behavior while reading compressed keys.
+
+**Complexity:** 1-2 weeks. Use the Triton Flash Attention tutorial as scaffold, inject centroid gather + nibble unpack into the inner tile loop.
+
+### P6: TQ3 bit-packing (research, nice-to-have)
 
 **Goal:** Pack 3-bit indices at the theoretical optimum (48 bytes per 128 indices, 4.92x compression).
 
