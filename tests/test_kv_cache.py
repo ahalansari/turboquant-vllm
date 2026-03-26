@@ -329,6 +329,51 @@ class TestCompressedDynamicCache:
         assert cos_k > 0.999, f"Key cosine similarity {cos_k:.4f} too low"
         assert cos_v > 0.999, f"Value cosine similarity {cos_v:.4f} too low"
 
+    def test_odd_head_dim_raises_with_4bit(self) -> None:
+        """bits=4 with odd head_dim should raise ValueError."""
+        from transformers import DynamicCache
+
+        cache = DynamicCache()
+        with pytest.raises(ValueError, match="even head_dim"):
+            CompressedDynamicCache(cache, head_dim=127, bits=4)
+
+    def test_compression_stats_empty(self) -> None:
+        """compression_stats() on empty cache should return empty dict."""
+        from transformers import DynamicCache
+
+        cache = DynamicCache()
+        cc = CompressedDynamicCache(cache, head_dim=DIM, bits=BITS)
+        assert cc.compression_stats() == {}
+
+    def test_get_seq_length_when_disabled(self) -> None:
+        """get_seq_length should use original method when disabled."""
+        from transformers import DynamicCache
+
+        cache = DynamicCache()
+        cc = CompressedDynamicCache(cache, head_dim=DIM, bits=BITS)
+
+        cache.update(
+            torch.randn(1, 4, 10, DIM), torch.randn(1, 4, 10, DIM), layer_idx=0
+        )
+        cc.disable()
+        seq_len = cache.get_seq_length(0)
+        assert seq_len == 10
+
+    def test_enable_after_disable(self) -> None:
+        """Re-enabling should resume compression on CompressedDynamicCache."""
+        from transformers import DynamicCache
+
+        cache = DynamicCache()
+        cc = CompressedDynamicCache(cache, head_dim=DIM, bits=BITS)
+
+        cc.disable()
+        cache.update(torch.randn(1, 4, 1, DIM), torch.randn(1, 4, 1, DIM), layer_idx=0)
+
+        cc.enable()
+        cache.update(torch.randn(1, 4, 1, DIM), torch.randn(1, 4, 1, DIM), layer_idx=0)
+
+        assert len(cc._compressed_keys) == 1
+
     def test_decompressed_buffers_accumulate(self) -> None:
         """Decompressed buffers persist across layers for incremental dequant."""
         from transformers import DynamicCache

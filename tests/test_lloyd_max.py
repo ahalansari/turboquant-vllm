@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from turboquant_consumer.lloyd_max import LloydMaxCodebook, solve_lloyd_max
+from turboquant_consumer.lloyd_max import LloydMaxCodebook, _beta_pdf, solve_lloyd_max
 
 from .conftest import BITS, DIM
 
@@ -50,3 +50,23 @@ class TestLloydMaxCodebook:
         indices = codebook_3bit.quantize(x)
         assert indices.min() >= 0
         assert indices.max() < 2**BITS
+
+    def test_exact_beta_codebook(self) -> None:
+        """Exact Beta PDF path should produce valid codebook for low dimensions."""
+        centroids, boundaries = solve_lloyd_max(16, 2, use_exact=True)
+        assert len(centroids) == 4
+        assert len(boundaries) == 3
+        assert torch.all(centroids[1:] > centroids[:-1])
+
+    def test_beta_pdf_returns_zero_outside_support(self) -> None:
+        """_beta_pdf should return 0 for values outside [-1/sqrt(d), 1/sqrt(d)]."""
+        assert _beta_pdf(1.0, 16) == 0.0
+        assert _beta_pdf(-1.0, 16) == 0.0
+        assert _beta_pdf(0.0, 16) > 0.0
+
+    def test_high_bits_produces_valid_codebook(self) -> None:
+        """High bit-width (6-bit, 64 levels) should converge without errors."""
+        centroids, boundaries = solve_lloyd_max(DIM, 6)
+        assert len(centroids) == 64
+        assert len(boundaries) == 63
+        assert torch.all(centroids[1:] > centroids[:-1])

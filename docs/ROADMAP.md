@@ -174,8 +174,8 @@ Validated inside ROCm container on Radeon 890M (gfx1150): **84/84 tests passed**
 
 | Step | Action | GPU? | Status |
 |------|--------|------|--------|
-| 2.3 | Push test coverage above 90% — identify uncovered paths | No | Not started |
-| 2.4 | Codebook solver convergence — check edge cases (low/high dims, extreme bit widths) | No | Not started |
+| 2.3 | Push test coverage above 90% — identify uncovered paths | No | ✅ 99% coverage (338/340 stmts), threshold raised to 95% |
+| 2.4 | Codebook solver convergence — check edge cases (low/high dims, extreme bit widths) | No | ✅ Added exact Beta path, 6-bit (64 levels), and boundary edge case tests |
 
 **Session 3 — Optional research:**
 
