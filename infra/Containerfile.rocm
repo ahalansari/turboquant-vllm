@@ -11,9 +11,12 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Install project dependencies (without dev group — add manually if needed)
 # scipy and einops are runtime deps not bundled in the base image
-RUN pip install --quiet scipy einops accelerate einops transformers molmo-utils && \
+RUN pip install --quiet "scipy>=1.10" "einops>=0.8" "accelerate>=0.25" "transformers>=4.57,<5.0" "molmo-utils>=0.0.1" && \
     pip install --quiet pytest pytest-asyncio pytest-mock pytest-randomly pytest-cov && \
     rm -rf /root/.cache/pip
+
+# Make project importable without pip install (source mounted at /workspace)
+ENV PYTHONPATH=/workspace/src
 
 WORKDIR /workspace
 

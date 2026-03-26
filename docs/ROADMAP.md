@@ -151,7 +151,7 @@ podman run --rm \
 | 1.1 | Create `Containerfile` for dev environment (ROCm + project deps) | ✅ `infra/Containerfile.rocm` + `infra/run-rocm.sh` |
 | 1.2 | Mount project sources as volumes | ✅ Handled by `run-rocm.sh` (+ HF cache mount) |
 | 1.3 | Add cross-device validation test fixtures (CPU vs GPU) | ✅ 21 tests parametrized, 84/84 pass on AMD GPU |
-| 1.4 | Verify `uv sync` works inside container with ROCm PyTorch | Not started |
+| 1.4 | Verify `uv sync` works inside container with ROCm PyTorch | ⚠️ `uv sync` installs CUDA torch from PyPI — use `PYTHONPATH=/workspace/src` instead |
 
 **Phase 1.3 Results — Cross-Device Test Parametrization (2026-03-26):**
 
