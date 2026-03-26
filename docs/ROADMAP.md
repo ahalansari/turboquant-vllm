@@ -121,7 +121,7 @@ on consumer GPUs (RTX 4090, 24 GB VRAM) with Molmo2 vision-language models.
 | 0.3 | Run `torch.cuda.get_device_name(0)` | ✅ "AMD Radeon Graphics", 32 GB, reports gfx1100 |
 | 0.4 | Run simple matmul on GPU | ✅ 1000x1000 and 2000x2000 matmul, CPU/GPU match atol=1e-4 |
 | 0.5 | Run test suite on CPU inside container | ✅ **62/62 tests pass** (12.4s) |
-| 0.6 | Run test suite on GPU inside container | Pending |
+| 0.6 | Run TurboQuant ops on GPU, cross-validate vs CPU | ✅ Bit-identical quantization, 0.995 cache cosine, no NaN/Inf |
 
 **Findings:** Initial attempts crashed with `Memory critical error — Memory in use` on all HSA override values (`11.0.0`, `11.0.1`, `11.0.2`, `11.5.0`, `11.5.1`). Root cause: **SELinux label enforcement** on Bazzite blocks `hipMalloc` inside Podman containers. Fix: `--security-opt=label=disable`.
 
