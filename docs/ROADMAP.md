@@ -437,15 +437,20 @@ The Google TurboQuant paper claims 5-6x compression and "up to 8x speedup." **Re
 
 ### P9: Closing the Speed Gap — Action Plan
 
-#### Phase 1: Establish the real baseline (experiment 013, ~30 min)
+#### Phase 1: Establish the real baseline (COMPLETE 2026-03-26)
 
-Benchmark FP32 eager attention (no SDPA, no Flash Attention) vs our P5 fused TQ4 kernel. If we're already 3x+ faster than FP32 eager, we match the paper's actual speed claim.
+**Experiment 013 results (Molmo2-4B, RTX 4090, text-only 17 tokens):**
 
-| Comparison | Expected | Why it matters |
-|---|---|---|
-| P5 fused vs FP32 eager | 2-4x faster? | Matches paper's baseline methodology |
-| P5 fused vs bf16 SDPA | 0.3-0.6x (known) | Shows the cuDNN gap — optimization target |
-| P5 fused vs unfused TQ4 | 0.6-0.9x (known) | Dequant overhead we want to eliminate |
+| Path | tok/s | vs FP32 eager |
+|------|-------|---|
+| bf16 eager | 55.3 | 1.43x |
+| bf16 SDPA (cuDNN FA) | 43.5 | 1.13x |
+| FP32 eager (paper's baseline) | 38.6 | 1.0x |
+| Fused TQ4 K+V | 8.6-12.6 | 0.22-0.33x |
+
+**Key insight:** At 17 input tokens, attention is <5% of total inference compute. ALL attention paths are fast because the bottleneck is model weights + MLP, not KV cache reads. The paper's "8x" only applies to the attention logit micro-operation in isolation — it is invisible in end-to-end inference at short sequences. FP32 eager is only 13% slower than cuDNN Flash Attention here.
+
+**The speedup opportunity is at 5K-11K+ tokens** where attention dominates compute and the 3.76x bandwidth reduction from compressed KV reads would actually matter. This has not been measured yet.
 
 #### Phase 2: Profile and optimize P5 kernel (2-3 days)
 
