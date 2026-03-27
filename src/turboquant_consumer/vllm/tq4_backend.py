@@ -69,14 +69,29 @@ class TQ4AttentionBackend(FlashAttentionBackend):
         - ``get_impl_cls()`` to return the compressing/decompressing impl
     """
 
+    @classmethod
+    def supports_mm_prefix(cls) -> bool:
+        """Declare support for multimodal prefix (bidirectional visual tokens).
+
+        Required for VLMs like Molmo2 that use ``is_mm_prefix_lm = True``.
+        Without this, vLLM rejects the backend during validation.
+
+        Returns:
+            ``True`` — delegates to Flash Attention which handles this correctly.
+        """
+        return True
+
     @staticmethod
     def get_name() -> str:
         """Return backend identifier string.
 
+        Must match the ``AttentionBackendEnum`` member name because vLLM
+        does ``AttentionBackendEnum[backend.get_name()]`` during model init.
+
         Returns:
-            ``"TQ4"`` — used in logs and backend selection.
+            ``"CUSTOM"`` — matches ``AttentionBackendEnum.CUSTOM``.
         """
-        return "TQ4"
+        return "CUSTOM"
 
     @staticmethod
     def get_impl_cls() -> type[AttentionImplBase]:

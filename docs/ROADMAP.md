@@ -590,9 +590,13 @@ vLLM v0.18.0 has a first-class plugin system for custom attention backends:
 | 3a.3 | Implement `get_kv_cache_shape()` — inherits Flash Attention shape (Phase 3b overrides) | ✅ |
 | 3a.4 | Stub `TQ4AttentionImpl` — passthrough to `FlashAttentionImpl` (no compression) | ✅ |
 | 3a.5 | Register via `vllm.general_plugins` entry point + `register_tq4_backend()` | ✅ |
-| 3a.6 | Smoke test: `vllm serve` starts and serves with TQ4 backend selected | |
+| 3a.6 | Smoke test: `vllm serve` starts and serves with TQ4 backend selected | ✅ |
 
-12 tests pass (registration, interface compliance, byte math). All pre-commit hooks green.
+13 tests pass (registration, interface compliance, byte math, mm_prefix). All pre-commit hooks green.
+
+**Smoke test result (2026-03-27):** vLLM 0.18.0 + Molmo2-8B + `--attention-backend CUSTOM` → model loads, serves on port 8100, responds correctly ("Four." to "What is 2+2?"). Two issues discovered and fixed during smoke test:
+- `supports_mm_prefix()` must return `True` for VLMs with bidirectional visual attention (Molmo2)
+- `get_name()` must return `"CUSTOM"` (the enum member name), not a custom string — vLLM does `AttentionBackendEnum[backend.get_name()]` during model init
 
 ##### Phase 3b: Compression write path
 

@@ -42,8 +42,8 @@ class TestTQ4Registration:
 class TestTQ4AttentionBackend:
     """Backend class interface compliance."""
 
-    def test_name(self):
-        assert TQ4AttentionBackend.get_name() == "TQ4"
+    def test_name_matches_enum(self):
+        assert TQ4AttentionBackend.get_name() == "CUSTOM"
 
     def test_impl_cls(self):
         assert TQ4AttentionBackend.get_impl_cls() is TQ4AttentionImpl
@@ -72,6 +72,9 @@ class TestTQ4AttentionBackend:
     def test_supported_dtypes(self):
         assert torch.float16 in TQ4AttentionBackend.supported_dtypes
         assert torch.bfloat16 in TQ4AttentionBackend.supported_dtypes
+
+    def test_supports_mm_prefix(self):
+        assert TQ4AttentionBackend.supports_mm_prefix() is True
 
 
 class TestTQ4AttentionImpl:
