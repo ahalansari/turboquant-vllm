@@ -504,6 +504,43 @@ Speedup improved from 1.97x (1 min) to 2.50x (5 min) — per-call overhead (HTTP
 **Experiment:** `experiments/experiment_014_full_episode_benchmark.py`
 **Data:** `experiments/logs/experiment-014-combined-8b.json` (1 min), `experiment-014-combined-8b-5min.json` (5 min)
 
+#### Experiment 015: vLLM duration stress test + TQ4 ceiling (COMPLETE 2026-03-27)
+
+Tested vLLM baseline and TQ4/HF paths at progressively longer clip durations to find each path's limits.
+
+**vLLM (baseline): fixed token budget, sparse sampling.**
+
+vLLM extracts a fixed ~2,880 input tokens regardless of clip duration. A 5-second clip and the full 22-minute episode both produce ~2,880 tokens. Longer clips = sparser frame sampling = fewer frames per second of video.
+
+| Duration | Tokens | Quality |
+|----------|--------|---------|
+| 5s | 2,854 | Fragmented, frequent hallucinations |
+| 60s | 2,880 | Decent — Jerry identified |
+| 120s | 2,880 | Surprisingly good — Jerry, George, Elaine |
+| 5 min | 2,905 | Renamed George to "Paul", fabricated characters |
+| 10 min | 2,911 | Called it "Friends", invented "Jerry and Elaine's wedding" |
+| **22 min (full ep)** | **2,923** | **"Jerry (played by George Costanza)"** — identity collapse |
+
+Quality sweet spot for vLLM: **60-120s** — long enough for temporal context, short enough for meaningful frame density.
+
+**TQ4/HF: tokens scale with duration, ViT VRAM wall.**
+
+Unlike vLLM, HF transformers extracts more frames for longer clips (tokens increase with duration). TQ4 compresses the text model's KV cache but cannot help with the vision encoder's (ViT) internal attention, which is the actual VRAM bottleneck.
+
+| Duration | Tokens | VRAM Peak | Status |
+|----------|--------|-----------|--------|
+| 19s | 3,753 | 19.4 GiB | works |
+| 20s | 3,753-4,376 | 19.9 GiB | works |
+| 30s | 5,533-6,156 | 21.3 GiB | works |
+| 33s | 4,821-6,156 | 21.3 GiB | **max** |
+| 34s+ | — | >24 GiB | **OOM (ViT, not KV cache)** |
+
+Quality remains consistent up to 33s — no TQ4-induced degradation. The 19s limit from prior analysis was conservative; actual ceiling is **33s for Molmo2-8B bf16 on RTX 4090 (24 GiB)**.
+
+**Key insight:** The two paths have fundamentally different failure modes. vLLM fails gracefully (sparse sampling → hallucinations) while TQ4/HF fails hard (OOM). But TQ4/HF produces faithful descriptions up to its VRAM limit because it processes dense frames, while vLLM's sparse sampling degrades output quality even when it doesn't crash.
+
+**Data:** `experiments/logs/experiment-015-vllm-duration-stress-test.json`
+
 #### Phase 3: vLLM integration for TQ4 KV cache
 
 **Goal:** Run TQ4 compression inside vLLM's serving stack for production deployment.

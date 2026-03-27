@@ -1,0 +1,391 @@
+{
+  "experiment": "015-vllm-duration-stress-test",
+  "date": "2026-03-27 04:57:16",
+  "model_id": "allenai/Molmo2-8B",
+  "max_new_tokens": 256,
+  "episode": "Seinfeld - S07E06 - The Soup Nazi - [WEBDL-720P][AAC 2.0][H264]-NTB.mkv",
+  "purpose": "Characterize vLLM baseline quality as clip duration increases. vLLM extracts a fixed number of frames regardless of duration (~2880 tokens). At what duration does sparse frame sampling cause hallucinations?",
+  "durations": {
+    "10s": {
+      "clip_duration_s": 10,
+      "num_clips": 6,
+      "avg_input_tokens": 2856,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2855,
+          "output_tokens": 256,
+          "elapsed_s": 9.83,
+          "output_text": "This scene from Seinfeld opens on a completely black screen before transitioning to a comedy club stage illuminated by a spotlight directed on the performer.\n\nThe setting features red curtains behind across brown curtains, creating a classic stand-up comedy club atmosphere. A small coffee table is positioned near the performer, holding a glass of water.\n\nJerry Seinfeld is performing on stage alone, dressed in a blue suit jacket over a light blue collared shirt, paired with a dark tie. His brown hair is styled with the characteristic sideburns along his temples. Seated audience members are visible in the foreground, with glasses of water placed in front of some of them, maintaining the casual nighttime club ambiance.\n\nThroughout his performance, Jerry holds a microphone and engages with his audience. He speaks animatedly while gesturing with his free hand, displaying the physical comedy style that made the show famous. A silver watch is visible on his wrist as he moves.\n\nAt the bottom of the screen, a green oval logo with the word \"Seinfeld\" appears in pink letters, accompanied by a small yellow triangle in the upper left corner of the oval. The performance space features a background with a red curtain on the left and a brown curtain on the right, illuminated by a spotlight against an otherwise dark setting.\n\nJerry's movement",
+          "characters": {
+            "jerry": 3
+          }
+        },
+        {
+          "clip": "clip_0001.mp4",
+          "input_tokens": 2855,
+          "output_tokens": 167,
+          "elapsed_s": 6.02,
+          "output_text": "I apologize for the confusion in my previous response. This is actually not from the Seinfeld TV show as I initially thought. What I'm watching is an episode of the British sketch comedy show \"Red Dwarf.\" The scene shows a comedian performing on stage under a spotlight, with audience members visible in the foreground. The performer is delivering a stand-up routine to the crowd, which was a common setting for the show's comedic sketches. Red Dwarf is known for its blend of sci-fi elements with surreal comedy, and this stage performance scene is likely part of one of their many hilarious sketches. Without more context from the episode, I can't provide details about specific characters or dialogue, but the comedic nature of Red Dwarf suggests the performance involves wit, humor, and possibly sci-fi-themed punchlines that played to the show's signature style.",
+          "characters": {}
+        },
+        {
+          "clip": "clip_0002.mp4",
+          "input_tokens": 2855,
+          "output_tokens": 219,
+          "elapsed_s": 7.75,
+          "output_text": "In this video clip, Jerry Seinfeld is performing stand-up comedy on a dimly lit stage. He's wearing a dark blue suit jacket over a blue button-down shirt with a brown tie featuring a subtle pattern. His distinctive long brown hair is styled with a slight curl, characteristic of his appearance during that era.\n\nJerry is holding a microphone in his hand and delivering his material to an audience seated at tables, watching attentively. The stage is illuminated by soft red and red-and-black lighting, creating a warm, intimate atmosphere typical of comedy club settings.\n\nThroughout his performance, Jerry moves expressively, gesturing with his hands to emphasize various jokes and moments. He frequently looks around the room as he interacts with his audience, maintaining engagement with both individuals and the space as a whole.\n\nThe video also displays production credits on screen, including acknowledgments for producers like Peter Mehlman, Marjorie Gross, and Tim Kaiser, as well as supervising production by Tom Gamill and Max Pross. This packaging of the performance highlights that it's a professionally produced stand-up comedy special.",
+          "characters": {
+            "jerry": 3
+          }
+        },
+        {
+          "clip": "clip_0003.mp4",
+          "input_tokens": 2863,
+          "output_tokens": 123,
+          "elapsed_s": 4.71,
+          "output_text": "The video clip opens with credits over a stage performance where a white comedian with dark brown hair is delivering a stand-up bit. He's dressed in a blue blazer over a white collared shirt with a blue tie that features white dots, and he's wearing a dress watch on his left wrist. Holding a microphone in his left hand raised to his mouth, he presents a sarcastic, deadpan performance while gesturing broadly with his right hand in a palm-up palm-down motion, raising and lowering it as he speaks. The performer maintains a serious expression throughout his routine in this dimly lit stage setting.",
+          "characters": {}
+        },
+        {
+          "clip": "clip_0004.mp4",
+          "input_tokens": 2855,
+          "output_tokens": 17,
+          "elapsed_s": 1.38,
+          "output_text": "The Women's Apartment. Jerry and Elaine are talking and smiling at each other.",
+          "characters": {
+            "jerry": 1,
+            "elaine": 1
+          }
+        },
+        {
+          "clip": "clip_0005.mp4",
+          "input_tokens": 2854,
+          "output_tokens": 256,
+          "elapsed_s": 8.71,
+          "output_text": "In the main living room, George Costanza sits in the foreground with his distinctive balding head and glasses, wearing a gray and white striped button-down shirt. He's smiling slightly and looking to the right while speaking to someone off-screen, appearing to be in the middle of a conversation. The room features gray walls with several framed pictures hanging on them. Behind George is a gray door with windows, and to his right is a window with blinds.\n\nThe room includes various furniture and items:\n- A gray desk with a computer monitor and lamp\n- A brown chair\n- A blue lamp\n- A brown table\n- A brown chair with a red cushion\n- A blue pillow\n\nThe lighting is relatively dim, creating a cozy and intimate atmosphere. George's posture, with his arms resting on his legs and his body centered in the frame, suggests he's engaged in a comfortable, casual moment.\n\nThe scene then transitions to another shot, showing Jerry and Elaine Seinfeld embracing and kissing. Jerry is wearing a blue shirt and sporting his characteristic brown hair, while Elaine, dressed in a black shirt, has her blonde hair visible from this angle. They share an intimate moment that creates a contrast to George's earlier scene.\n\nThis sequence from the TV show \"Seinfeld\" effectively",
+          "characters": {
+            "jerry": 2,
+            "george": 4,
+            "elaine": 2
+          }
+        }
+      ]
+    },
+    "20s": {
+      "clip_duration_s": 20,
+      "num_clips": 3,
+      "avg_input_tokens": 2870,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2870,
+          "output_tokens": 172,
+          "elapsed_s": 6.3,
+          "output_text": "The video opens with the Seinfeld logo appearing on screen: in green type beside a green circle partially obscured by the Seinfeld lettering, topped with a yellow triangle, as the title pulses and dims.\n\nThe scene then establishes a sitcom-style setting featuring Jerry Seinfeld, who is on the main comedic stage. He appears as the football team owner from Seinfeld. He stands at the microphone speaking to the audience dressed formally in a cream suit, blue shirt, and multicolored tie, being introduced to start a performance in a comedic club with the stage personnel.\n\nThe focus remains on Jerry addressing the crowd, using energetic comedic gestures while performing. The camera occasionally pushes in on the cast to emphasize different performers, but Jerry maintains the primary spotlight throughout.\n\nA title appears showing the word \"Jerry\" alongside the conductor's credentials, possibly displayed as \" JR\".",
+          "characters": {
+            "jerry": 4
+          }
+        },
+        {
+          "clip": "clip_0001.mp4",
+          "input_tokens": 2873,
+          "output_tokens": 254,
+          "elapsed_s": 8.92,
+          "output_text": "This clip is from the sitcom Seinfeld, showcasing Jerry Seinfeld's stand-up comedy routine at the\u895f Zero Club. He performs energetically on stage in his blue suit and tie, with short curly brown hair and a watch on his left wrist. The stage features red curtains and black walls, with a microphone stand positioned to his left as he engages the audience.\n\nText rolls across the screen during the routine, crediting the show's production team with names including Marjorie Gross, Carol Leifer, Tim Kaiser, and Tom Gamill.\n\nAfter the stand-up segment, the scene transitions to Jerry's apartment kitchen, where his friends are gathered. George Costanza sits on the floor reading a newspaper, wearing glasses. Jerry stands with his arms around Francis on the kitchen counter, still in his blue shirt and tie. The apartment has a lived-in feel with gray walls, and several appliances are visible in the background, including a microwave and a toaster.\n\nThroughout the clip, Seinfeld displays his characteristic comedic expressiveness - from the dynamic stage performance to the natural, animated body language of his characters in everyday settings. This montage effectively captures the mix of polished stand-up comedy and relatable, lighthearted moments that define Seinfeld's unique style.",
+          "characters": {
+            "jerry": 3,
+            "george": 1
+          }
+        },
+        {
+          "clip": "clip_0002.mp4",
+          "input_tokens": 2866,
+          "output_tokens": 256,
+          "elapsed_s": 8.85,
+          "output_text": "In this scene from Seinfeld, we see Jerry and Elaine in the kitchen of Jerry's apartment. Jerry is wearing a blue shirt and appears to be speaking with Frankie Placement, though Frankie isn't visible in the frame. Elaine, who has long blonde hair and is wearing a black sweater, has her arms wrapped around Jerry, holding him from behind while he turns to face her in a affectionate stance.\n\nThe setting is the familiar kitchen and living space. Behind them, you can see the gray wall with fronted cabinets, the white refrigerator covered in magnets, and a bookshelf with various items including a bottle of water and a package of honeycomb. A white microwave is visible to the right, and there's a knife block containing several knives.\n\nIn the background, George Costanza is watching the two and appears somewhat awkward or uncomfortable with the situation. He wears his signature glasses, a gray and black plaid shirt, and has his characteristic receding hairline. At one point, he lifts his head and walks away, passing by a window with blinds.\n\nThe scene captures a moment of romantic interaction between Jerry and Elaine, with George's reaction adding contrast to their affectionate behavior. The 15-second clip doesn't show much dialogue, focusing instead on the physical expressions",
+          "characters": {
+            "jerry": 5,
+            "george": 2,
+            "elaine": 3
+          }
+        }
+      ]
+    },
+    "30s": {
+      "clip_duration_s": 30,
+      "num_clips": 2,
+      "avg_input_tokens": 2875,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2875,
+          "output_tokens": 256,
+          "elapsed_s": 9.03,
+          "output_text": "The video opens in a comedy club with a nighttime setting, featuring Jerry Seinfeld\u8868\u6f14ing to an engaged audience. The club has panelled walls with warm tones of brown and red, and the stage is illuminated by a spotlight that isolates Seinfeld from the surrounding darkness. He delivers his standup comedy while dressed in a dark blue suit jacket over a light blue collared shirt and a dark tie with a subtle pattern. His signature short brown hair, cut in a style that reads as a mullet with sideburns and slight waves, is clearly visible as he performs.\n\nSeinfeld is quite animated in his delivery, holding a microphone in his right hand while gesturing extensively with his left and shaking his head emphatically as he addresses the audience about different topics. He's wearing a watch on his left wrist that catches the stage light. The setting's warm tones, combined with the focused spotlight and dim background, create the intimate atmosphere typical of comedy club performances.\n\nThroughout the scene, the program displays various production credits in white text. The credits include names such as Michael Richards, Jason Alexander, producer Marjorie Gross, co-producer Carol Leifer, producer Tim Kaiser, producer Susie Maman, and Greinerberg Supervising Producers Tom Gilliam and Max",
+          "characters": {
+            "jerry": 1
+          }
+        },
+        {
+          "clip": "clip_0001.mp4",
+          "input_tokens": 2875,
+          "output_tokens": 256,
+          "elapsed_s": 9.04,
+          "output_text": "The video clip is from the sitcom Friends and opens with a title card that identifies the writing staff. The first title card displays \"SUPERVISING PRODUCERS TOM GAMDALL AND MAX PROSS,\" and the credits are presented as if at the beginning of a segment or episode. The card features a classic sitcom montage style with a man in a blue suit jacket holding a black microphone and speaking in front of a red curtain, accompanied by bold white text reading \"SUPERVISING PRODUCERS TOM GAMDALL AND MAX PROSS.\" This establishes the show's professional production quality and serves as a formal acknowledgment of the crew.\n\nThe clip then shows a cut inside a kitchen where the main characters are gathered around a gray countertop. Jerry Seinfeld and Elaine Benes are embracing, with Jerry on the left and Elaine on the right, both dressed in blue shirts. Their intimate positioning with arms wrapped around each other suggests a moment of personal connection or emotion.\n\nIn the foreground, George Costanza is seated while wearing his signature glasses and patterned button-down shirt, holding a piece of paper. There is also a whiteboard visible in the background, reinforcing the apartment's lived-in, personal space. The on-screen text reads \"CREATED BY LARRY DAVID AND",
+          "characters": {
+            "jerry": 2,
+            "george": 1,
+            "elaine": 2
+          }
+        }
+      ]
+    },
+    "40s": {
+      "clip_duration_s": 40,
+      "num_clips": 2,
+      "avg_input_tokens": 2872,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2878,
+          "output_tokens": 242,
+          "elapsed_s": 8.79,
+          "output_text": "The video clip takes place in a dimly lit comedy club setting. Jerry Seinfeld is performing on stage as the stand-up comedian. He's wearing a dark blue suit jacket over a light blue shirt with a patterned blue tie, holding a microphone in his right hand while gesturing with his left hand. His distinctive brown, wavy hair is visible as he speaks to the audience.\n\nThe stage is illuminated by a spotlight against a red curtain backdrop. A stool is placed on the stage with a glass sitting on it. An audience can be seen watching from the front, including a woman with long blond hair and a man with short brown hair.\n\nNotably, a bronze statue is positioned on the stage behind Jerry's right shoulder. There's also a microphone stand visible to his left side as he moves around during his performance.\n\nAs Jerry speaks and gestures to engage the audience, on-screen text appears identifying \"Jerry Seinfeld\" and other credits rolling. This confirms the segment as part of a TV production. At the conclusion of the segment, the scene shifts from the comedy club to what appears to be Jerry's character's apartment, suggesting a transition from the performance to a domestic setting in the show.",
+          "characters": {
+            "jerry": 5
+          }
+        },
+        {
+          "clip": "clip_0001.mp4",
+          "input_tokens": 2866,
+          "output_tokens": 256,
+          "elapsed_s": 8.55,
+          "output_text": "In this scene from \"Seinfeld,\" we see George Costanza sitting in an office chair and talking to a man and woman. The man has brown hair and is wearing a blue shirt, while the woman has blonde hair. As George begins speaking, the man and woman giggle together, with the man saying something to the woman that causes them to laugh. Notably, there is text displayed that reads \"Written by Spike Feresten.\"\n\nFollowing this exchange, the woman continues laughing while the man moves closer to her and starts talking. Throughout this interaction, the woman is smiling at him. She has her arms around his neck, and the man has his hand on her waist.\n\nThe setting appears to be a cozy, lived-in space. Behind the two people, there is a kitchen area visible, which includes a refrigerator topped with various items, a loaf of bread, and a bag of cookies. The gray wall behind them is adorned with shelves that have glass fronts, containing several jars and boxes, including what looks like a red jar of spaghetti sauce and a yellow box.\n\nIn the foreground of this kitchen area, there is a white microwave visible on the counter, as well as a blue coffee mug and a brown container with black-handled knives. The upper gray cabinets above",
+          "characters": {
+            "george": 2
+          }
+        }
+      ]
+    },
+    "60s": {
+      "clip_duration_s": 60,
+      "num_clips": 1,
+      "avg_input_tokens": 2880,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2880,
+          "output_tokens": 256,
+          "elapsed_s": 9.43,
+          "output_text": "The video opens in a classic comedy club setting with red curtains and a spotlight centered on the stage. A white male comedian with brown hair is performing, dressed in a navy blue suit over a light blue collared shirt. He holds a black handheld microphone in his right hand and wears a watch on his left wrist. The club is filled with an audience of men and women of various ages, all seated and attentively focused on the stage.\n\nThe scene cuts between the comedian's performance and bits of text appearing on screen\u2014credits naming Jerry Seinfeld, Julia Louis-Dreyfus, and Michael Richards. There's also a brief cut outdoors showing a red brick apartment building with a fire escape and decorative window.\n\nThe main comedic content centers on a domestic kitchen scene featuring Jerry Seinfeld, with the credits \"CREATED BY LARRY DAVID AND JERRY SEINFELD\" appearing as a bald man in a gray shirt and glasses reads from a newspaper at a table. A kitchen counter holds a cutting board with food, and behind Jerry stand gray cabinets, a fire extinguisher, a yellow box of Honeycomb cereal, and a gray tile backsplash. A woman with long blonde hair in a black sweater wraps an arm around Jerry as he looks down at her, his signature",
+          "characters": {
+            "jerry": 5
+          }
+        }
+      ]
+    },
+    "120s": {
+      "clip_duration_s": 120,
+      "num_clips": 1,
+      "avg_input_tokens": 2880,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2880,
+          "output_tokens": 256,
+          "elapsed_s": 8.84,
+          "output_text": "The video clip is from the TV show Seinfeld that begins with Jerry Seinfeld performing stand-up comedy on stage at what appears to be a comedy club or auditorium. \n\nJerry stands under bright spotlights wearing a blue suit and white shirt as he addresses the audience using a handheld microphone. The camera alternates between medium shots of Jerry in his solid blue jacket. His delivery is animated, with dramatic gestures and intentional movements throughout his performance.\n\nAs Jerry performs, credits appear on-screen naming Julia Louis-Dreyfus as Elaine Benes and Michael Richards as George Costanza among others, confirming this is from the Seinfeld series. The setting appears to be a typical comedy venue with audience members visible in the foreground, some seated at tables while others stand watching the performance. The overall atmosphere is that of a classic comedy club setup.\n\nAt one point in the clip, Jerry is seen embracing Elaine in a warm hug in what appears to be their apartment. George Costanza is also present during this interaction, standing nearby observing the scene with his characteristic expression.\n\nThe video concludes with the show's title card presenting Seinfeld with credits listing producers paired with the Season One spotlight symbol, indicating this is promotional footage for the first season of the series. The clip effectively showcases both the comedy routine format",
+          "characters": {
+            "jerry": 5,
+            "george": 2,
+            "elaine": 2
+          }
+        }
+      ]
+    },
+    "300s": {
+      "clip_duration_s": 300,
+      "num_clips": 5,
+      "avg_input_tokens": 2903,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2905,
+          "output_tokens": 256,
+          "elapsed_s": 13.09,
+          "output_text": "This grainy VHS recording from Seinfeld, captured in a cluttered domestic setting filled with character interactions, unfolds in an apartment kitchen.\n\n**Morning Kitchen Dilemma**\n\nThe scene opens in a cozy kitchen complete with gray cabinetry, tiled walls, and everyday household items like a roll of paper towels and a loaf of bread. Paul (played by Jason Alexander) is seated at the counter wearing a gray shirt and green pants, balding at the front, absorbed in reading a newspaper. The juxtaposition of the mundane domestic space and what turns out to be weighty matters creates an immediately comically awkward situation.\n\nKramer (Jerry Seinfeld), sporting his brown jacket, blue button-down shirt, and blue jeans, stands nearby, engaged in an extended, animated conversation with someone out of frame. His energy is palpable as he gestures with his free hand, working through whatever it is he's trying to explain. The physical composition of the space draws the eye naturally to these two characters, emphasizing their connection despite the empty backdrop.\n\nClaire (Kathy Bates, whose long blonde hair and black shirt are visible in this early segment) leans in, resting her hand on the counter. Her involvement suggests she's part of the discussion or observing closely, her presence subtly signaling",
+          "characters": {
+            "jerry": 1,
+            "kramer": 1
+          }
+        },
+        {
+          "clip": "clip_0001.mp4",
+          "input_tokens": 2905,
+          "output_tokens": 256,
+          "elapsed_s": 12.94,
+          "output_text": "In the video clip, several characters from Seinfeld gather around George Costanza in a central doorframe of an apartment hallway. The focus is on George's attempt to sit on his usual stoop at apartment 2C, but Elaine is nearby with her arm stretched out in front of him to block the way, seemingly urging him to return inside. George appears frustrated and reluctant, standing amid this situation while surrounded by the others.\n\nThe setting is the familiar apartment building from the show. One character in the group wears a blue button-down shirt with jeans and appears surprised or amused, standing back from the main action while observing. Another character with distinctive brown hair wears a white shirt with blue designs and green pants, holding a pillow while engaged in the situation. In the background, you can see a dining room and various smaller details of the apartment interior that give it its lived-in look.\n\nThe apartment door visible in the scene features a distinctive small black circle surrounded by two gold squares, with a gold handle and a gold hook mounted above it. This practical, small-scale detail adds to the mundane realism of the building's interior that the show is known for.\n\nThe scene captures an everyday moment with the main characters in their typical urban New York setting, focused on George's struggle or insistence",
+          "characters": {
+            "george": 4,
+            "elaine": 1
+          }
+        },
+        {
+          "clip": "clip_0002.mp4",
+          "input_tokens": 2905,
+          "output_tokens": 95,
+          "elapsed_s": 8.0,
+          "output_text": "The video clip follows a scene with a group of men putting on jackets to go outside, with one man carrying Jones avoiding the queue at the hot sauce place. When they approach the counter, he hands over money without saying anything and goes inside. However, upon realizing he forgot his bag, he quickly goes back out to retrieve it. During this sequence, George makes a statement as the man with the jacket exits, but his point isn't clear from what's shown.",
+          "characters": {
+            "george": 1
+          }
+        },
+        {
+          "clip": "clip_0003.mp4",
+          "input_tokens": 2905,
+          "output_tokens": 256,
+          "elapsed_s": 12.91,
+          "output_text": "The scene takes place in a casual diner with a busy, lively atmosphere. The space has light-hearted d\u00e9cor including pictures on the walls, a white-tiled backsplash, a brown wooden bar area with stools, and various dining tables scattered throughout.\n\nThe initial focus is on George Costanza and Elaine Benes sitting together. She has blonde hair and is dressed warmly in red with a white shirt, giving her a subdued but composed appearance. The two are seated side by side, appear to be engaging in conversation with one another.\n\nThe camera then cuts to Jerry Seinfeld and his girlfriend Jamie sitting together at a table. She has shoulder-length blonde hair and is wearing a brown jacket layered over green and white striped clothing. They're sitting about a foot apart with their heads close together. Both share a warm smile, suggesting they're having a pleasant conversation.\n\nElsewhere in the diner, several other patrons can be seen. A man with short brown hair wearing a black jacket and white shirt is seated at one of the dining tables. A woman in a yellow shirt with a white apron is standing at the bar area, and another man with curly black hair wearing a brown shirt and gray pants is at a table, bringing a casual, everyday feel to the scene.\n\nThe diner's kitchen",
+          "characters": {
+            "jerry": 1,
+            "george": 1,
+            "elaine": 1
+          }
+        },
+        {
+          "clip": "clip_0004.mp4",
+          "input_tokens": 2897,
+          "output_tokens": 256,
+          "elapsed_s": 10.88,
+          "output_text": "The video clip opens in a bustling store, likely a grocery market or deli. George Costanza can be seen standing with Florence who is wrapping her arms around his neck in a close embrace. George is wearing his familiar thick glasses and has his characteristic nervous smile on his face. He's dressed in a burgundy jacket over a gray shirt in this scene. He's at a self-checkout register.\n\nA woman with brown hair wearing a green jacket is visible from behind, turned away from the camera. She has her left hand raised slightly and appears to be looking down at something. The counter itself is gray, and there are various-Packaged goods in nearby containers with labels like \"longaniza\" and \"tomatoes\" visible.\n\nThrough the glass window in the background, a brown bicycle can be seen outside, and the colors in the scene include various shades of blue, red, tan, brown, white, black, and gray.\n\nThis appears to be a comedic moment capturing George's social awkwardness and nervousness, particularly his tendency to be self-conscious in public spaces. The embrace with Florence suggests there may be romantic undertones or a significant moment of connection between these characters. The self-checkout setting indicates this might be taking place in a restaurant, grocery store,",
+          "characters": {
+            "george": 3
+          }
+        }
+      ]
+    },
+    "600s": {
+      "clip_duration_s": 600,
+      "num_clips": 3,
+      "avg_input_tokens": 2906,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2911,
+          "output_tokens": 256,
+          "elapsed_s": 17.34,
+          "output_text": "This is a scene from Friends featuring a group of characters in a familiar urban setting.\n\nThe scene opens with Joey lounging casually on some stairs, dressed in dark brown pants, light brown socks, black shoes, and a brown jacket, cradling a blue pillow. The camera lingers on his relaxed posture against the brick wall backdrop.\n\nThe action then moves to a kitchen whereoklyn Bessie is seated at a round wooden table, wearing a blue shirt and blue jeans and holding a white cup in his hand. He's eating with a white plastic spoon and paper, focusing intently on his meal. A blue napkin rests on the table beside him.\n\nJust behind the kitchen door stands Drunken Phil. The two are engaged in conversation, though neither is making eye contact\u2014Drinking Phil focuses on the paperwork he's holding carefully, while Joey glances sidelong at Russian, who keeps staring intensely at him without responding. Over the course of their exchange, Joey alternates his focus between the paperwork and Drunken Phil.\n\nRussian appears irritated by the persistent sidelong glances Joey keeps stealing throughout this quiet interaction. The dialogue discusses an apartment, with Joey asking Russian about the place and Drunken Phil providing explanations about it. Russian's frustrated annoyance grows as Joey continues",
+          "characters": {}
+        },
+        {
+          "clip": "clip_0001.mp4",
+          "input_tokens": 2911,
+          "output_tokens": 256,
+          "elapsed_s": 17.25,
+          "output_text": "This video clip is from the sitcom Seinfeld and takes place at the Waverly Hills Diner in Manhattan. The story involves multiple threads following Elaine and Jerry's wedding ceremony.\n\nAfter the wedding, Elaine runs into George at the diner. Their conversation becomes heated and negative. They disagree about their new marital status, which leads to a tense argument.\n\nMeanwhile, Jerry and his best friend Kramer are at the diner having some drinks. This is where Elaine enters and confronts them. Her demeanor appears cold and unfriendly, with sharp expressions and even sarcastic gestures as she talks to Jerry. She's clearly not in a good mood and seems to be expressing her frustration or disappointment.\n\nThe scene captures the typical dynamic between friends on Seinfeld, where people express their frustration about the wedding and societal expectations of marriage in a humorous yet serious way. The Waverly Hills Diner serves as a familiar setting for these kinds of conversations, acting as a backdrop for personal confessions and heated discussions typical of the show's style.\n\nThe clip would likely include cutaways to reaction shots\u2014perhaps showing the reactions of other characters or establishing shots of the diner's interior with its distinctive decor. The interactions between these friends highlight the show's exploration of relationships, marriage, and personal expectations in contemporary",
+          "characters": {
+            "jerry": 3,
+            "george": 1,
+            "kramer": 1,
+            "elaine": 3
+          }
+        },
+        {
+          "clip": "clip_0002.mp4",
+          "input_tokens": 2897,
+          "output_tokens": 256,
+          "elapsed_s": 10.24,
+          "output_text": "The video clip opens with the opening credits of a 1995 episode of Seinfeld, where Jerry Seinfeld (George Costanza) enters Elaine's apartment and they have a brief, casual conversation as they arrive. The setting is the interior of George and Elaine's apartment, establishing the familiar domestic environment where much of the show's humor unfolds. During their exchange, both blonde women bring curses, adding a comedic touch to their interaction. Jerry and Elaine light candles together, creating a warm, intimate moment that contrasts with the show's often deadpan humor.\n\nThe setting then shifts to a grocery store, a background location frequently used in the series. A woman wearing a burgundy business jacket receives an order containing drinks, while George makes a comment about the imported drinks. Phoebe pairs up with a woman dressed in black for a quick exchange, and Elaine is seen conversing with a chef in this busy, everyday setting.\n\nAs the episode progresses, credits for executive producers George Shapiro and Howard West roll over scenes, while Fernando unrolls them for the audience. The credits continue with listings for executive story and editors Alec Berg and Jeff Schaffer, along with production design by T.H.O.E. E.azzari. Costume design is attributed to Catherine Simmons, key costumes",
+          "characters": {
+            "jerry": 2,
+            "george": 4,
+            "elaine": 4
+          }
+        }
+      ]
+    },
+    "full_episode_1370s": {
+      "clip_duration_s": 1370,
+      "num_clips": 1,
+      "avg_input_tokens": 2923,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2923,
+          "output_tokens": 256,
+          "elapsed_s": 27.83,
+          "output_text": "The video takes place primarily in Jerry Seinfeld's apartment from the classic sitcom, with Jerry (played by George Costanza) as the central focus. The scene begins with George inside the apartment wearing a button-up shirt, while a balding man with glasses looks on from the doorway. The apartment setting is typical of the show, featuring various personal belongings and wall decorations that capture the everyday, lived-in feel characteristic of the series.\n\nThe scene transitions outdoors to what appears to be a bustling city environment, where George becomes the focal point amidst a cluster of people. In this outdoor setting, he now wears a brown jacket over his familiar blue shirt. Charlie Sheen's character, Moss-Gelman, appears in the same scene and waves at George. Other characters populate this street location, including a man in a red jacket and brown button-up shirt with glasses, and a woman with dark hair wearing a brown leather jacket and black shirt. A store sign with a black background, blue lettering, and yellow Price Chopper logo is visible in the background, set against a brick building at a corner location.\n\nWithin this outdoor gathering, George gestures emphatically, pointing at the woman in the brown leather jacket as he speaks animatedly. The other characters watch him closely, including the man in",
+          "characters": {
+            "jerry": 2,
+            "george": 5
+          }
+        }
+      ]
+    },
+    "5s": {
+      "clip_duration_s": 5,
+      "num_clips": 12,
+      "avg_input_tokens": 2854,
+      "clips": [
+        {
+          "clip": "clip_0000.mp4",
+          "input_tokens": 2854,
+          "output_tokens": 256,
+          "elapsed_s": 9.94,
+          "output_text": "This scene from Seinfeld opens on a completely black screen before transitioning to a comedy club setting. Jerry Seinfeld makes his entrance in the dimly lit club, walking across the stage in a dark suit with a light blue shirt and dark tie. He approaches a table containing a glass of water and picks up a microphone to address the audience.\n\nThe stage is dramatically lit, with the spotlight illuminating Seinfeld against a backdrop featuring a red curtain complemented by a brown wooden panel. This creates a classic comedy club atmosphere typical of the Seinfeld opening sequence. The audience is seated in typical?'90s-inspired attire\u2014jeans, flannel shirts, and plaid patterns are visible from behind\u2014many in a mix of suits and casual wear.\n\nThroughout his performance, Seinfeld uses a combination of classic stand-up gestures and comic delivery. He occasionally glances to his right while speaking, suggesting he may be addressing something offstage or thinking through a bit. His animated hand gestures and expressive body movements help convey the comedic energy and pacing characteristic of his act.\n\nThe camera framing focuses on Seinfeld as the main character, with the audience visible but largely in silhouette or partial darkness. This composition emphasizes the performer on stage while maintaining the sense of engagement with his live audience. The overall",
+          "characters": {
+            "jerry": 1
+          }
+        },
+        {
+          "clip": "clip_0001.mp4",
+          "input_tokens": 2854,
+          "output_tokens": 108,
+          "elapsed_s": 4.16,
+          "output_text": "I apologize, but I don't see anything specific happening in this video clip that I can describe in detail. The current frame only shows part of the right side of the screen with a spot of grey coloring and some black. There are no characters visible, no setting to describe, and no actions or dialogue that I can identify. This appears to be incomplete footage or an unexpected frame that doesn't contain any meaningful content. If there's additional context or information you'd like me to consider about the overall video, please let me know.",
+          "characters": {}
+        },
+        {
+          "clip": "clip_0002.mp4",
+          "input_tokens": 2854,
+          "output_tokens": 211,
+          "elapsed_s": 7.32,
+          "output_text": "A man stands centered on stage under bright spotlight, wearing a dark blue suit jacket over a light blue collared shirt with a dark blue tie. With a microphone in his right hand and his left hand raised to waist level, he's making direct eye contact with the audience while speaking.\n\nThe stage has vertical red-and-white striped curtains throughout the background, creating a strong visual contrast and theatrical atmosphere. The overall tone is dramatic, with the performer taking center stage amid this bold striped backdrop.\n\nIn the foreground, we can see the backs of audience members' heads, including someone wearing a plaid shirt, an older man with a white headband, and a woman in a black suit. The setting appears to be a comedy club or live performance venue where spectators are intently watching the stand-up act unfold.\n\nAt the bottom left of the image, bold white capital letters display the name \"MICHAEL RICHARDS.\" This on-screen text identifies the speaker, who is presumably performing a stand-up routine given the setup and his engagement with the audience.",
+          "characters": {}
+        }
+      ],
+      "note": "First 3 clips shown; full data in experiment-014-baseline-8b.json"
+    }
+  },
+  "tq4_comparison": {
+    "19s": {
+      "input_tokens": 3753,
+      "vram_peak_mib": 19427,
+      "status": "works"
+    },
+    "20s": {
+      "input_tokens": "3753-4376",
+      "vram_peak_mib": 19909,
+      "status": "works"
+    },
+    "30s": {
+      "input_tokens": "5533-6156",
+      "vram_peak_mib": 21298,
+      "status": "works"
+    },
+    "33s": {
+      "input_tokens": "4821-6156",
+      "vram_peak_mib": 21298,
+      "status": "max \u2014 works"
+    },
+    "34s": {
+      "status": "OOM \u2014 vision encoder exceeds 24 GiB"
+    }
+  },
+  "token_scaling": {
+    "vllm": "Fixed ~2880 tokens regardless of clip duration. Sparse frame sampling for longer clips.",
+    "hf_transformers": "Tokens scale with duration: 2854 (5s) -> 3753 (19s) -> 6156 (30s). More frames extracted for longer clips.",
+    "implication": "vLLM never OOMs but quality degrades from sparse sampling. HF/TQ4 maintains dense sampling but hits ViT VRAM wall at 34s (8B bf16, RTX 4090)."
+  }
+}
