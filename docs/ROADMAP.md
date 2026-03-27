@@ -598,22 +598,39 @@ vLLM v0.18.0 has a first-class plugin system for custom attention backends:
 - `supports_mm_prefix()` must return `True` for VLMs with bidirectional visual attention (Molmo2)
 - `get_name()` must return `"CUSTOM"` (the enum member name), not a custom string — vLLM does `AttentionBackendEnum[backend.get_name()]` during model init
 
-##### Phase 3b: Compression write path
+##### Phase 3b: Compress + dequant in pure PyTorch (naive-correct)
+
+Write path and read path are coupled — the KV cache is a single tensor, so writing compressed data breaks the read path. Both must be implemented together. Pure PyTorch first, reusing `CompressedDynamicCache` logic (lesson #9: naive first, kernels later).
+
+**Architecture:** Set `forward_includes_kv_cache_update = True` and override `forward()` to handle compress → store → dequant → Flash Attention in one method.
 
 | Step | Action | Status |
 |------|--------|--------|
-| 3b.1 | Triton kernel: `reshape_and_cache_tq4` — FP16 K/V → rotate → quantize → nibble-pack → store at `slot_mapping` offsets | |
-| 3b.2 | Validate stored blocks match `CompressedDynamicCache` output bit-for-bit | |
-| 3b.3 | Unit tests for pack/unpack round-trip on paged blocks | |
+| 3b.1 | Override `get_kv_cache_shape()` — `(num_blocks, block_size, 2 * num_kv_heads * bytes_per_head)` for TQ4 packed layout | |
+| 3b.2 | Init rotation matrix + Lloyd-Max codebook in `TQ4AttentionImpl.__init__()` — shared across all layers, deterministic from seed | |
+| 3b.3 | Compression write: in `forward()`, compress new K/V → nibble-packed indices + fp32 norms → write to `kv_cache` at `slot_mapping` offsets | |
+| 3b.4 | Decompression read: read TQ4 pages from `kv_cache` → unpack nibbles → centroid lookup → inverse rotate → rescale → FP16 | |
+| 3b.5 | Call Flash Attention on decompressed FP16 K/V buffers | |
+| 3b.6 | Validate output matches HF SDPA path (cosine similarity > 0.999 per layer) | |
+| 3b.7 | Multi-layer validation (36 layers, composition > 0.93) | |
+| 3b.8 | Smoke test: `vllm serve` + Molmo2-8B with TQ4 compression active | |
 
-##### Phase 3c: Decompression read path
+**Key implementation details:**
+- `slot_mapping` is `(num_tokens,)` — maps each new token to a flat slot index in the paged cache. Convert to byte offsets: `slot * bytes_per_token_per_head` within each head's page region.
+- fp32 norms mandatory (lesson #1). Store as 4 bytes per token per head in the page.
+- Rotation matrix `[head_dim, head_dim]` and codebook `[16]` are ~66 KB total — negligible, init once in `__init__`.
+- VIT encoder uses FLASH_ATTN separately (auto-selected for `vit attention`). Our override only affects text decoder layers.
+
+##### Phase 3c: Triton kernel optimization (if needed)
+
+Only pursue if Phase 3b benchmarks show pure PyTorch compress/dequant is a bottleneck.
 
 | Step | Action | Status |
 |------|--------|--------|
-| 3c.1 | In `TQ4AttentionImpl.forward()`: read TQ4 pages, dequant to FP16, call Flash Attention | |
-| 3c.2 | Incremental dequant pattern (only new tokens, not full cache rebuild) | |
-| 3c.3 | Validate output matches HF SDPA path (cosine similarity > 0.999) | |
-| 3c.4 | Multi-layer validation (36 layers, composition > 0.93) | |
+| 3c.1 | Profile Phase 3b — is compress/dequant the bottleneck, or is Flash Attention still dominant? | |
+| 3c.2 | If bottleneck: Triton `reshape_and_cache_tq4` kernel for fused compress+write | |
+| 3c.3 | If bottleneck: Triton dequant kernel for fused read+dequant | |
+| 3c.4 | Validate bit-for-bit match with pure PyTorch path | |
 
 ##### Phase 3d: Production benchmark
 
@@ -624,7 +641,10 @@ vLLM v0.18.0 has a first-class plugin system for custom attention backends:
 | 3d.3 | Measure throughput (tok/s), VRAM, quality | |
 | 3d.4 | Update `vllm-nvidia.service` quadlet to use TQ4 backend | |
 
-**Key risk:** `CacheDType` is a `Literal` type — adding `"tq4"` may require a one-line vLLM source patch or monkey-patch. Not a fork concern, but worth investigating early (Phase 3a).
+**Resolved risks:**
+- ~~`CacheDType` Literal type~~ — bypassed entirely. Use `"auto"` dtype with custom page shape via `get_kv_cache_shape()`. No vLLM source patch needed.
+- `get_name()` must return `"CUSTOM"` (enum member name), not a custom string.
+- `supports_mm_prefix()` must return `True` for VLMs like Molmo2.
 
 #### Phase 4: Research — SageAttention-style INT8 path (future)
 
