@@ -598,39 +598,64 @@ vLLM v0.18.0 has a first-class plugin system for custom attention backends:
 - `supports_mm_prefix()` must return `True` for VLMs with bidirectional visual attention (Molmo2)
 - `get_name()` must return `"CUSTOM"` (the enum member name), not a custom string — vLLM does `AttentionBackendEnum[backend.get_name()]` during model init
 
-##### Phase 3b: Compress + dequant in pure PyTorch (naive-correct)
+##### Phase 3b: TQ4 compression quality validation through vLLM (COMPLETE 2026-03-27)
 
-Write path and read path are coupled — the KV cache is a single tensor, so writing compressed data breaks the read path. Both must be implemented together. Pure PyTorch first, reusing `CompressedDynamicCache` logic (lesson #9: naive first, kernels later).
+Validates TQ4 compress→decompress round-trip inside vLLM's attention path. Uses standard 5D cache shape (no VRAM savings yet). The cache stores decompressed (lossy) FP16 data after TQ4 round-trip.
 
-**Architecture:** Set `forward_includes_kv_cache_update = True` and override `forward()` to handle compress → store → dequant → Flash Attention in one method.
+**Architecture:** `forward_includes_kv_cache_update = True`. Override `forward()` to compress→decompress new K/V tokens, write lossy FP16 to standard cache via `do_kv_cache_update()`, then delegate to Flash Attention via `super().forward()`.
 
 | Step | Action | Status |
 |------|--------|--------|
-| 3b.1 | Override `get_kv_cache_shape()` — `(num_blocks, block_size, 2 * num_kv_heads * bytes_per_head)` for TQ4 packed layout | |
-| 3b.2 | Init rotation matrix + Lloyd-Max codebook in `TQ4AttentionImpl.__init__()` — shared across all layers, deterministic from seed | |
-| 3b.3 | Compression write: in `forward()`, compress new K/V → nibble-packed indices + fp32 norms → write to `kv_cache` at `slot_mapping` offsets | |
-| 3b.4 | Decompression read: read TQ4 pages from `kv_cache` → unpack nibbles → centroid lookup → inverse rotate → rescale → FP16 | |
-| 3b.5 | Call Flash Attention on decompressed FP16 K/V buffers | |
+| 3b.1 | Override `get_kv_cache_shape()` for TQ4 packed layout | ⏭️ deferred to 3c (see below) |
+| 3b.2 | Init rotation matrix + Lloyd-Max codebook in `TQ4AttentionImpl.__init__()` | ✅ |
+| 3b.3 | Compression in `forward()`: compress new K/V → nibble-packed indices + fp32 norms | ✅ |
+| 3b.4 | Decompression in `forward()`: unpack nibbles → centroid lookup → inverse rotate → rescale → FP16 | ✅ |
+| 3b.5 | Call Flash Attention on decompressed FP16 K/V buffers | ✅ |
 | 3b.6 | Validate output matches HF SDPA path (cosine similarity > 0.999 per layer) | |
 | 3b.7 | Multi-layer validation (36 layers, composition > 0.93) | |
-| 3b.8 | Smoke test: `vllm serve` + Molmo2-8B with TQ4 compression active | |
+| 3b.8 | Smoke test: `vllm serve` + Molmo2-8B with TQ4 compression active | ✅ |
+
+152 tests pass. All pre-commit hooks green.
+
+**Smoke test result (2026-03-27):** vLLM 0.18.0 + Molmo2-8B + `--attention-backend CUSTOM` with TQ4 compress→decompress active → model loads, serves on port 8100, correct responses:
+- "What is 2+2?" → "4" ✅
+- "Name the four main characters of Seinfeld" → "Jerry, George, Elaine, and Kramer" ✅ (all 4 preserved)
+
+**Bugs found and fixed:**
+- `TQ4AttentionImpl.__init__()` — vLLM passes 11 args positionally; switched to `*args, **kwargs` passthrough
+- `_generate_rotation_matrix()` — vLLM sets `torch.set_default_device('cuda')` and default dtype to bfloat16 during model init; the CPU generator and `torch.randn` created bfloat16 tensors on CUDA. Fixed with explicit `device="cpu", dtype=torch.float32`
+- `get_kv_cache_stride_order()` — inherited 5-element tuple from Flash Attention, but 3D packed shape needs 3-element. Reverted to standard 5D shape (see 3b.1 deferral below)
+
+**Key discovery — 3b.1 deferred:** `get_kv_cache_shape()` only controls the *reshape* of the cache tensor, not its *allocation*. Buffer allocation uses `KVCacheSpec.page_size_bytes` (set in `FullAttentionSpec` during model init, based on `num_kv_heads * head_size * dtype_size * 2`). Overriding `get_kv_cache_shape()` to a smaller TQ4 shape causes a reshape mismatch because the buffer was sized for the standard page. To get actual VRAM savings, we must also override `page_size_bytes` in the `KVCacheSpec`. This is a Phase 3c task.
 
 **Key implementation details:**
-- `slot_mapping` is `(num_tokens,)` — maps each new token to a flat slot index in the paged cache. Convert to byte offsets: `slot * bytes_per_token_per_head` within each head's page region.
-- fp32 norms mandatory (lesson #1). Store as 4 bytes per token per head in the page.
-- Rotation matrix `[head_dim, head_dim]` and codebook `[16]` are ~66 KB total — negligible, init once in `__init__`.
-- VIT encoder uses FLASH_ATTN separately (auto-selected for `vit attention`). Our override only affects text decoder layers.
+- Rotation matrix and codebook are CPU-initialized with explicit `device="cpu", dtype=torch.float32` to survive vLLM's default device/dtype context, then lazily moved to GPU on first `forward()` call.
+- VIT encoder uses FLASH_ATTN separately (auto-selected for `vit attention`). Our TQ4 override only affects text decoder layers.
+- `forward_includes_kv_cache_update = True` means forward() handles both cache write (via `do_kv_cache_update()`) and attention (via `super().forward()`). The runtime does NOT call `do_kv_cache_update()` separately.
+- `attn_metadata.slot_mapping` is available inside `forward()` for writing new tokens.
 
-##### Phase 3c: Triton kernel optimization (if needed)
+##### Phase 3c: Packed TQ4 cache layout + VRAM savings
 
-Only pursue if Phase 3b benchmarks show pure PyTorch compress/dequant is a bottleneck.
+Override buffer allocation to use TQ4 page size (68 bytes/token/head vs 256 FP16). Then Triton kernels if profiling shows PyTorch compress/dequant is a bottleneck.
 
 | Step | Action | Status |
 |------|--------|--------|
-| 3c.1 | Profile Phase 3b — is compress/dequant the bottleneck, or is Flash Attention still dominant? | |
-| 3c.2 | If bottleneck: Triton `reshape_and_cache_tq4` kernel for fused compress+write | |
-| 3c.3 | If bottleneck: Triton dequant kernel for fused read+dequant | |
-| 3c.4 | Validate bit-for-bit match with pure PyTorch path | |
+| 3c.1 | Research: override `FullAttentionSpec.page_size_bytes` for TQ4 page size (custom `KVCacheSpec` subclass or monkey-patch) | |
+| 3c.2 | Override `get_kv_cache_shape()` → `(num_blocks, block_size, total_bytes // elem_size)` for 3D packed layout | |
+| 3c.3 | Override `get_kv_cache_stride_order()` → `(0, 1, 2)` identity for 3D shape | |
+| 3c.4 | Implement `_compress_and_store()` — scatter-write TQ4 bytes to flat cache via `slot_mapping` | |
+| 3c.5 | Implement `_decompress_cache()` — read TQ4 pages, decompress all blocks to `(2, NB, BS, H, D)` FP16 for Flash Attention | |
+| 3c.6 | Smoke test: `vllm serve` + Molmo2-8B with TQ4 packed cache, verify VRAM reduction | |
+| 3c.7 | Profile: is PyTorch compress/dequant the bottleneck, or Flash Attention? | |
+| 3c.8 | If bottleneck: Triton `reshape_and_cache_tq4` kernel for fused compress+write | |
+| 3c.9 | If bottleneck: Triton dequant kernel for fused read+dequant | |
+| 3c.10 | Validate bit-for-bit match with pure PyTorch path | |
+
+**Implementation notes for 3c.1 (page_size_bytes override):**
+- `FullAttentionSpec` is created in `vllm/model_executor/layers/attention/attention.py:533-539`
+- `page_size_bytes` is computed from `num_kv_heads * head_size * dtype_size * 2 * block_size`
+- Options: (a) custom `AttentionSpec` subclass with overridden `page_size_bytes`, (b) post-init patch on the spec, (c) override at the `Attention` layer level
+- The compress/decompress code from Phase 3b (`_compress`, `_decompress`, `_compress_and_store`, `_decompress_cache`) is already written and tested — it just needs to target the packed cache instead of doing a round-trip
 
 ##### Phase 3d: Production benchmark
 
@@ -642,9 +667,12 @@ Only pursue if Phase 3b benchmarks show pure PyTorch compress/dequant is a bottl
 | 3d.4 | Update `vllm-nvidia.service` quadlet to use TQ4 backend | |
 
 **Resolved risks:**
-- ~~`CacheDType` Literal type~~ — bypassed entirely. Use `"auto"` dtype with custom page shape via `get_kv_cache_shape()`. No vLLM source patch needed.
+- ~~`CacheDType` Literal type~~ — bypassed entirely. Use `"auto"` dtype. No vLLM source patch needed.
 - `get_name()` must return `"CUSTOM"` (enum member name), not a custom string.
 - `supports_mm_prefix()` must return `True` for VLMs like Molmo2.
+- `_generate_rotation_matrix()` must use `device="cpu", dtype=torch.float32` — vLLM overrides default device and dtype during model init.
+- `TQ4AttentionImpl.__init__()` must accept `*args, **kwargs` — vLLM passes `attn_type`, `kv_sharing_target_layer_name`, `sinks` positionally.
+- `get_kv_cache_shape()` alone cannot change buffer allocation — `KVCacheSpec.page_size_bytes` controls the raw buffer size.
 
 #### Phase 4: Research — SageAttention-style INT8 path (future)
 

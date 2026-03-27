@@ -1,7 +1,8 @@
-"""Tests for TQ4 vLLM attention backend (Phase 3a skeleton).
+"""Tests for TQ4 vLLM attention backend.
 
-These tests validate the plugin wiring: registration, class hierarchy,
-and interface compliance.  They require vLLM to be installed.
+Phase 3a tests: plugin wiring, registration, class hierarchy, interface compliance.
+Phase 3b tests: TQ4 packed cache shape, compress/decompress round-trip.
+Requires vLLM to be installed.
 """
 
 import pytest
@@ -55,6 +56,7 @@ class TestTQ4AttentionBackend:
         assert issubclass(TQ4AttentionBackend, FlashAttentionBackend)
 
     def test_kv_cache_shape_matches_flash(self):
+        """Phase 3b: standard shape (packed layout deferred to Phase 3c)."""
         shape = TQ4AttentionBackend.get_kv_cache_shape(
             num_blocks=100,
             block_size=16,
@@ -68,6 +70,18 @@ class TestTQ4AttentionBackend:
             head_size=128,
         )
         assert shape == expected
+
+    def test_forward_includes_kv_cache_update(self):
+        """Phase 3b: forward() handles cache writes + compress round-trip."""
+        assert TQ4AttentionBackend.forward_includes_kv_cache_update is True
+
+    def test_compression_ratio_math(self):
+        """TQ4 byte layout gives 3.76x compression vs FP16."""
+        num_kv_heads, head_size = 8, 128
+        tq4_bytes = 2 * num_kv_heads * _tq4_bytes_per_token(head_size)
+        fp16_bytes = 2 * num_kv_heads * head_size * 2
+        ratio = fp16_bytes / tq4_bytes
+        assert abs(ratio - 3.76) < 0.01
 
     def test_supported_dtypes(self):
         assert torch.float16 in TQ4AttentionBackend.supported_dtypes
