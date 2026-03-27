@@ -16,3 +16,10 @@ wheels/
 .idea/
 .vscode/
 .coverage
+
+# BMAD workflow artifacts
+_bmad/
+_bmad-output/
+
+# Claude Code
+.claude/
