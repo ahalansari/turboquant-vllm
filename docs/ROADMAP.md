@@ -715,7 +715,7 @@ Override buffer allocation to use TQ4 page size (68 bytes/token/head vs 256 FP16
 | 3d.1 | Re-run experiment 014 with vLLM + TQ4 backend | ✅ |
 | 3d.2 | Compare: vLLM-TQ4 vs vLLM-baseline | ✅ |
 | 3d.3 | Measure throughput (tok/s), VRAM, quality | ✅ |
-| 3d.4 | Update `vllm-nvidia.service` quadlet to use TQ4 backend | |
+| 3d.4 | Update `vllm-nvidia.service` quadlet to use TQ4 backend | — (requires container image with turboquant-vllm installed) |
 
 **Phase 3d result (2026-03-27):** Production benchmark, Molmo2-8B, Seinfeld Soup Nazi, 120s:
 - Standard vLLM (5s clips, 24 clips): 187.1s total, 28.6 tok/s
@@ -743,8 +743,19 @@ SageAttention v2 achieves **3x faster than FA2** on RTX 4090 using INT8 for Q@K^
 - Speed vs FP32 eager: >=2x at 1K+ tokens (**experiment 013: 0.2x at 17 tokens — attention is <5% of compute at short sequences**)
 - Speed vs cuDNN FA: target >0.8x at 11K tokens (**requires kernel optimization, deprioritized**)
 - Text quality: coherent output, character names preserved (**DONE** — Molmo2-8B validated)
-- max_model_len: 3x increase in vLLM serving (**P9 Phase 3**)
-- Total video throughput: process longer clips in fewer inference calls (**DONE — 1.97x faster, experiment 014**)
+- max_model_len: 3x increase in vLLM serving (**DONE** — 60,880 tokens @ 14.86x concurrency)
+- Total video throughput: process longer clips in fewer inference calls (**DONE — 3.35x faster, experiment 014 Phase 3d**)
+- Decode step speedup: fused Triton kernels (**DONE** — 3.7x at 4096 cache, experiment 016)
+- PyPI package: `pip install turboquant-vllm` (**DONE** — v0.1.0 published 2026-03-27)
+
+#### Packaging & Distribution
+
+- **PyPI:** `turboquant-vllm` v0.1.0 — https://pypi.org/project/turboquant-vllm/
+- **GitHub:** `Alberto-Codes/turboquant-vllm` (renamed from turboquant-consumer 2026-03-27)
+- **Import:** `from turboquant_vllm import ...`
+- **vLLM plugin:** auto-registers via `vllm.general_plugins` entry point
+- **Install:** `pip install turboquant-vllm[vllm]` for full vLLM integration
+- **Next:** release-please, CHANGELOG, proper README, v1.0.0
 
 ---
 
@@ -757,9 +768,9 @@ SageAttention v2 achieves **3x faster than FA2** on RTX 4090 using INT8 for Q@K^
 | GPU | NVIDIA RTX 4090 (24 GB GDDR6X) | All benchmarks run here |
 | CPU | AMD 7800X3D | Codebook solving, data loading |
 | RAM | 128 GB DDR5 | Model offloading when needed |
-| Target model | Molmo2-4B (experiments) / 8B (future) | Vision-language model for video analysis |
+| Target model | Molmo2-8B | Vision-language model for video analysis |
 | Target workload | Seinfeld clip analysis | 11K+ visual tokens at 2fps |
-| Production stack | vLLM in Podman (CDI GPU) | Currently FP8 KV cache |
+| Production stack | vLLM 0.18 + turboquant-vllm | TQ4 KV cache via `--attention-backend CUSTOM` |
 
 ### Secondary — Laptop (Radeon 890M iGPU)
 
