@@ -218,11 +218,17 @@ class TQ4FullAttentionSpec(FullAttentionSpec):
     def real_page_size_bytes(self) -> int:  # noqa: D102
         # Triton kernels always nibble-pack, so page size is independent of
         # bit-width (different codebook sizes don't change storage layout).
-        return (
+        natural = (
             self.block_size
             * self.num_kv_heads
             * _tq4_bytes_per_token_kv(self.head_size)
         )
+        # For models with heterogeneous head dims (e.g. Gemma 4: 256/512),
+        # vLLM requires all layers to have equal page sizes.  Pad all layers
+        # to use the max per-slot byte count so pages are identical.
+        if _unified_slot_bytes is not None:
+            return self.block_size * _unified_slot_bytes
+        return natural
 
 
 # ---------------------------------------------------------------------------
@@ -317,8 +323,16 @@ class TQ4AttentionBackend(FlashAttentionBackend):
 
         The last dimension packs K and V data for all heads as raw bytes:
         ``[K_indices | K_norms | V_indices | V_norms]``.
+
+        For heterogeneous models (Gemma 4), the unified page size may be
+        larger than the natural size.  We derive the per-slot bytes from
+        the unified page size so the tensor shape matches the spec.
         """
-        total_bytes = num_kv_heads * _tq4_bytes_per_token_kv(head_size)
+        natural_bytes = num_kv_heads * _tq4_bytes_per_token_kv(head_size)
+        if _unified_slot_bytes is not None:
+            total_bytes = _unified_slot_bytes
+        else:
+            total_bytes = natural_bytes
         return (num_blocks, block_size, total_bytes)
 
     @staticmethod
@@ -1172,6 +1186,35 @@ class TQ4AttentionImpl(FlashAttentionImpl):
 # ---------------------------------------------------------------------------
 
 _original_get_kv_cache_spec = None
+_unified_slot_bytes: int | None = None
+
+
+def _compute_unified_slot_bytes(specs: list[FullAttentionSpec]) -> int | None:
+    """Compute a unified per-slot byte count for heterogeneous TQ4 layers.
+
+    For models with heterogeneous head dims (e.g. Gemma 4: head_dim=256 on
+    sliding layers with 4 KV heads, head_dim=512 on global layers with 1 KV
+    head), the natural per-slot byte counts differ.  vLLM requires all layers
+    to have divisible page sizes (page = block_size * bytes_per_slot).
+
+    We pad all layers to use the max bytes-per-slot so all pages are equal.
+    Returns ``None`` if all layers already share the same slot size.
+    """
+    slot_sizes = set()
+    for spec in specs:
+        natural = spec.num_kv_heads * _tq4_bytes_per_token_kv(spec.head_size)
+        slot_sizes.add(natural)
+
+    if len(slot_sizes) <= 1:
+        return None  # homogeneous, no padding needed
+
+    max_slot = max(slot_sizes)
+    logger.info(
+        "Heterogeneous TQ4 slot sizes %s → unified %d bytes/slot (%.1f%% overhead)",
+        sorted(slot_sizes), max_slot,
+        (max_slot * len(slot_sizes) / sum(slot_sizes) - 1) * 100,
+    )
+    return max_slot
 
 
 def register_tq4_backend() -> None:
@@ -1181,6 +1224,10 @@ def register_tq4_backend() -> None:
     ``Attention.get_kv_cache_spec`` so that decoder attention layers
     return :class:`TQ4FullAttentionSpec` (with ``dtype=torch.uint8``
     and TQ4-sized pages) instead of the standard ``FullAttentionSpec``.
+
+    For models with heterogeneous head dims (Gemma 4), a two-pass approach
+    collects all layer specs first, computes a unified page size (LCM),
+    and then returns specs with that unified size.
 
     Called automatically by the ``vllm.general_plugins`` entry point,
     or manually before starting vLLM::
@@ -1205,21 +1252,61 @@ def register_tq4_backend() -> None:
     if TQ4FullAttentionSpec not in spec_manager_map:
         spec_manager_map[TQ4FullAttentionSpec] = spec_manager_map[FullAttentionSpec]
 
-    # Monkey-patch Attention.get_kv_cache_spec to return TQ4 spec
+    # Monkey-patch Attention.get_kv_cache_spec to return TQ4 spec.
+    # Two-pass: first call collects all specs to detect heterogeneous
+    # head dims, second pass returns specs with unified page size.
     from vllm.model_executor.layers.attention.attention import Attention
 
     if _original_get_kv_cache_spec is None:
         _original_get_kv_cache_spec = Attention.get_kv_cache_spec
 
+    _pending_specs: dict[int, FullAttentionSpec] = {}
+    _unified_computed = [False]
+
     def _tq4_get_kv_cache_spec(self, vllm_config):
+        global _unified_slot_bytes  # noqa: PLW0603
+
         spec = _original_get_kv_cache_spec(self, vllm_config)
         if isinstance(spec, FullAttentionSpec) and not isinstance(
             spec, TQ4FullAttentionSpec
         ):
             kwargs = {f.name: getattr(spec, f.name) for f in dc_fields(spec)}
             kwargs["dtype"] = torch.uint8
-            return TQ4FullAttentionSpec(**kwargs)
+            tq4_spec = TQ4FullAttentionSpec(**kwargs)
+
+            # Collect specs on first pass for unified page size computation.
+            # vLLM calls get_kv_cache_spec for all layers in one pass, so
+            # after the first call we can detect heterogeneity.
+            _pending_specs[id(self)] = tq4_spec
+
+            return tq4_spec
         return spec
+
+    # Also patch the model's get_kv_cache_spec_dict to do the two-pass
+    # unification after all individual specs are collected.
+    _original_model_get_spec = None
+
+    def _ensure_unified_page_size():
+        """Compute unified page size once all layer specs are known."""
+        global _unified_slot_bytes  # noqa: PLW0603
+        if not _unified_computed[0] and _pending_specs:
+            _unified_slot_bytes = _compute_unified_slot_bytes(
+                list(_pending_specs.values())
+            )
+            _unified_computed[0] = True
+
+    # Hook into Attention.__init_subclass__ won't work; instead, we rely on
+    # vLLM calling get_kv_cache_spec for ALL layers before unify runs.
+    # Patch the unify function itself to trigger our computation first.
+    import vllm.v1.core.kv_cache_utils as _kv_utils
+
+    _orig_unify = _kv_utils.unify_kv_cache_spec_page_size
+
+    def _patched_unify(kv_cache_spec):
+        _ensure_unified_page_size()
+        return _orig_unify(kv_cache_spec)
+
+    _kv_utils.unify_kv_cache_spec_page_size = _patched_unify
 
     Attention.get_kv_cache_spec = _tq4_get_kv_cache_spec
     logger.info("TQ4 attention backend registered as CUSTOM (packed cache)")
