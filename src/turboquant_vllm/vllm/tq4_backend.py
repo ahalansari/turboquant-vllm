@@ -218,17 +218,11 @@ class TQ4FullAttentionSpec(FullAttentionSpec):
     def real_page_size_bytes(self) -> int:  # noqa: D102
         # Triton kernels always nibble-pack, so page size is independent of
         # bit-width (different codebook sizes don't change storage layout).
-        natural = (
+        return (
             self.block_size
             * self.num_kv_heads
             * _tq4_bytes_per_token_kv(self.head_size)
         )
-        # For models with heterogeneous head dims (e.g. Gemma 4: 256/512),
-        # vLLM requires all layers to have equal page sizes.  Pad all layers
-        # to use the max per-slot byte count so pages are identical.
-        if _unified_slot_bytes is not None:
-            return self.block_size * _unified_slot_bytes
-        return natural
 
 
 # ---------------------------------------------------------------------------
@@ -328,11 +322,7 @@ class TQ4AttentionBackend(FlashAttentionBackend):
         larger than the natural size.  We derive the per-slot bytes from
         the unified page size so the tensor shape matches the spec.
         """
-        natural_bytes = num_kv_heads * _tq4_bytes_per_token_kv(head_size)
-        if _unified_slot_bytes is not None:
-            total_bytes = _unified_slot_bytes
-        else:
-            total_bytes = natural_bytes
+        total_bytes = num_kv_heads * _tq4_bytes_per_token_kv(head_size)
         return (num_blocks, block_size, total_bytes)
 
     @staticmethod
@@ -1186,7 +1176,53 @@ class TQ4AttentionImpl(FlashAttentionImpl):
 # ---------------------------------------------------------------------------
 
 _original_get_kv_cache_spec = None
-_unified_slot_bytes: int | None = None
+_unified_page_size_padded: int | None = None
+
+
+def _compute_max_tq4_page_size(vllm_config, block_size: int) -> int | None:
+    """Compute the max TQ4 page size across all layer configs.
+
+    For models with heterogeneous head dims (e.g. Gemma 4), returns the
+    max page size so all layers can use ``page_size_padded`` for uniform
+    allocation.  Returns ``None`` for homogeneous models.
+    """
+    try:
+        hf_config = vllm_config.model_config.hf_config
+        tp_size = vllm_config.parallel_config.tensor_parallel_size
+
+        page_sizes = set()
+
+        # Standard attention heads
+        num_kv_heads = getattr(hf_config, "num_key_value_heads", None)
+        head_dim = getattr(hf_config, "head_dim", None)
+        if num_kv_heads is not None and head_dim is not None:
+            kv_per_gpu = max(1, num_kv_heads // tp_size)
+            page_sizes.add(
+                block_size * kv_per_gpu * _tq4_bytes_per_token_kv(head_dim)
+            )
+
+        # Global attention heads (Gemma 4)
+        global_kv_heads = getattr(hf_config, "num_global_key_value_heads", None)
+        global_head_dim = getattr(hf_config, "global_head_dim", None)
+        if global_kv_heads is not None and global_head_dim is not None:
+            global_kv_per_gpu = max(1, global_kv_heads // tp_size)
+            page_sizes.add(
+                block_size
+                * global_kv_per_gpu
+                * _tq4_bytes_per_token_kv(global_head_dim)
+            )
+
+        if len(page_sizes) > 1:
+            max_page = max(page_sizes)
+            logger.info(
+                "Heterogeneous TQ4 page sizes %s → padding to %d bytes",
+                sorted(page_sizes),
+                max_page,
+            )
+            return max_page
+    except Exception as exc:
+        logger.debug("Could not compute max TQ4 page size: %s", exc)
+    return None
 
 
 def register_tq4_backend() -> None:
@@ -1197,9 +1233,9 @@ def register_tq4_backend() -> None:
     return :class:`TQ4FullAttentionSpec` (with ``dtype=torch.uint8``
     and TQ4-sized pages) instead of the standard ``FullAttentionSpec``.
 
-    For models with heterogeneous head dims (Gemma 4), the max per-slot
-    byte count is tracked across all layers so every layer reports the
-    same page size.
+    For models with heterogeneous head dims (Gemma 4), sets
+    ``page_size_padded`` on all TQ4 specs so vLLM's page unifier
+    sees uniform page sizes.
 
     Called automatically by the ``vllm.general_plugins`` entry point,
     or manually before starting vLLM::
@@ -1217,102 +1253,38 @@ def register_tq4_backend() -> None:
     )
 
     # Register TQ4FullAttentionSpec in the KV cache manager mapping.
-    # vLLM uses exact type() match, not isinstance(), so subclasses
-    # of FullAttentionSpec must be explicitly added.
     from vllm.v1.core.single_type_kv_cache_manager import spec_manager_map
 
     if TQ4FullAttentionSpec not in spec_manager_map:
         spec_manager_map[TQ4FullAttentionSpec] = spec_manager_map[FullAttentionSpec]
 
-    # Monkey-patch Attention.get_kv_cache_spec to return TQ4 spec.
-    # Eagerly tracks the max per-slot byte count across all layers so
-    # heterogeneous models (Gemma 4) get uniform page sizes.
     from vllm.model_executor.layers.attention.attention import Attention
 
     if _original_get_kv_cache_spec is None:
         _original_get_kv_cache_spec = Attention.get_kv_cache_spec
 
-    # Pre-compute the max slot bytes from model config if available.
-    # This handles heterogeneous head dims before any specs are created.
-    _precompute_unified_slot_bytes()
+    _max_page = [None]  # mutable container for closure
 
     def _tq4_get_kv_cache_spec(self, vllm_config):
-        global _unified_slot_bytes  # noqa: PLW0603
-
         spec = _original_get_kv_cache_spec(self, vllm_config)
         if isinstance(spec, FullAttentionSpec) and not isinstance(
             spec, TQ4FullAttentionSpec
         ):
+            # Compute max page size on first call (vllm_config now available)
+            if _max_page[0] is None:
+                _max_page[0] = _compute_max_tq4_page_size(
+                    vllm_config, spec.block_size
+                )
+
             kwargs = {f.name: getattr(spec, f.name) for f in dc_fields(spec)}
             kwargs["dtype"] = torch.uint8
-            tq4_spec = TQ4FullAttentionSpec(**kwargs)
-
-            # Track max slot bytes across all layers (fallback if
-            # pre-computation missed some configuration).
-            natural = tq4_spec.num_kv_heads * _tq4_bytes_per_token_kv(
-                tq4_spec.head_size
-            )
-            if _unified_slot_bytes is None or natural > _unified_slot_bytes:
-                _unified_slot_bytes = natural
-
-            return tq4_spec
+            # Set page_size_padded so all layers report the same page size.
+            # FullAttentionSpec.page_size_bytes returns page_size_padded
+            # when set, bypassing real_page_size_bytes entirely.
+            if _max_page[0] is not None:
+                kwargs["page_size_padded"] = _max_page[0]
+            return TQ4FullAttentionSpec(**kwargs)
         return spec
 
     Attention.get_kv_cache_spec = _tq4_get_kv_cache_spec
     logger.info("TQ4 attention backend registered as CUSTOM (packed cache)")
-
-
-def _precompute_unified_slot_bytes() -> None:
-    """Pre-compute the max per-slot byte count from model config.
-
-    Reads the model config to discover all distinct (num_kv_heads, head_dim)
-    combinations and sets ``_unified_slot_bytes`` to the max.  This ensures
-    ``real_page_size_bytes`` returns a uniform value for ALL layers from
-    the very first ``get_kv_cache_spec`` call.
-    """
-    global _unified_slot_bytes  # noqa: PLW0603
-
-    try:
-        from vllm.config import get_current_vllm_config_or_none
-
-        vllm_config = get_current_vllm_config_or_none()
-        if vllm_config is None:
-            return
-
-        model_config = vllm_config.model_config
-        hf_config = model_config.hf_config
-        tp_size = vllm_config.parallel_config.tensor_parallel_size
-
-        # Collect all (num_kv_heads_per_gpu, head_dim) combinations
-        slot_sizes = set()
-
-        # Standard heads
-        num_kv_heads = getattr(hf_config, "num_key_value_heads", None)
-        head_dim = getattr(hf_config, "head_dim", None)
-        if num_kv_heads is not None and head_dim is not None:
-            kv_per_gpu = max(1, num_kv_heads // tp_size)
-            slot_sizes.add(kv_per_gpu * _tq4_bytes_per_token_kv(head_dim))
-
-        # Global heads (Gemma 4 style)
-        global_kv_heads = getattr(hf_config, "num_global_key_value_heads", None)
-        global_head_dim = getattr(hf_config, "global_head_dim", None)
-        if global_kv_heads is not None and global_head_dim is not None:
-            global_kv_per_gpu = max(1, global_kv_heads // tp_size)
-            slot_sizes.add(
-                global_kv_per_gpu * _tq4_bytes_per_token_kv(global_head_dim)
-            )
-
-        if len(slot_sizes) > 1:
-            _unified_slot_bytes = max(slot_sizes)
-            logger.info(
-                "Heterogeneous TQ4 slot sizes %s → unified %d bytes/slot",
-                sorted(slot_sizes),
-                _unified_slot_bytes,
-            )
-        elif len(slot_sizes) == 1:
-            # Homogeneous — no unification needed, but set it anyway
-            # so get_kv_cache_shape is consistent with real_page_size_bytes.
-            pass
-
-    except Exception as exc:
-        logger.debug("Could not pre-compute unified slot bytes: %s", exc)
