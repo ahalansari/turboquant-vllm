@@ -1190,11 +1190,19 @@ def _compute_max_tq4_page_size(vllm_config, block_size: int) -> int | None:
         hf_config = vllm_config.model_config.hf_config
         tp_size = vllm_config.parallel_config.tensor_parallel_size
 
+        # For multimodal models (e.g. Gemma4ForConditionalGeneration),
+        # text attention config is nested under text_config.
+        text_config = getattr(hf_config, "text_config", hf_config)
+
         page_sizes = set()
 
         # Standard attention heads
-        num_kv_heads = getattr(hf_config, "num_key_value_heads", None)
-        head_dim = getattr(hf_config, "head_dim", None)
+        num_kv_heads = getattr(text_config, "num_key_value_heads", None)
+        head_dim = getattr(text_config, "head_dim", None)
+        logger.info(
+            "TQ4 page size: text_config num_kv_heads=%s head_dim=%s tp=%d",
+            num_kv_heads, head_dim, tp_size,
+        )
         if num_kv_heads is not None and head_dim is not None:
             kv_per_gpu = max(1, num_kv_heads // tp_size)
             page_sizes.add(
@@ -1202,8 +1210,14 @@ def _compute_max_tq4_page_size(vllm_config, block_size: int) -> int | None:
             )
 
         # Global attention heads (Gemma 4)
-        global_kv_heads = getattr(hf_config, "num_global_key_value_heads", None)
-        global_head_dim = getattr(hf_config, "global_head_dim", None)
+        global_kv_heads = getattr(
+            text_config, "num_global_key_value_heads", None
+        )
+        global_head_dim = getattr(text_config, "global_head_dim", None)
+        logger.info(
+            "TQ4 page size: global_kv_heads=%s global_head_dim=%s",
+            global_kv_heads, global_head_dim,
+        )
         if global_kv_heads is not None and global_head_dim is not None:
             global_kv_per_gpu = max(1, global_kv_heads // tp_size)
             page_sizes.add(
@@ -1211,6 +1225,8 @@ def _compute_max_tq4_page_size(vllm_config, block_size: int) -> int | None:
                 * global_kv_per_gpu
                 * _tq4_bytes_per_token_kv(global_head_dim)
             )
+
+        logger.info("TQ4 page sizes found: %s", sorted(page_sizes))
 
         if len(page_sizes) > 1:
             max_page = max(page_sizes)
@@ -1221,7 +1237,7 @@ def _compute_max_tq4_page_size(vllm_config, block_size: int) -> int | None:
             )
             return max_page
     except Exception as exc:
-        logger.debug("Could not compute max TQ4 page size: %s", exc)
+        logger.warning("Could not compute max TQ4 page size: %s", exc)
     return None
 
 
@@ -1283,7 +1299,16 @@ def register_tq4_backend() -> None:
             # when set, bypassing real_page_size_bytes entirely.
             if _max_page[0] is not None:
                 kwargs["page_size_padded"] = _max_page[0]
-            return TQ4FullAttentionSpec(**kwargs)
+            tq4_spec = TQ4FullAttentionSpec(**kwargs)
+            logger.info(
+                "TQ4 spec: head_size=%d kv_heads=%d page_size_bytes=%d "
+                "page_size_padded=%s",
+                tq4_spec.head_size,
+                tq4_spec.num_kv_heads,
+                tq4_spec.page_size_bytes,
+                tq4_spec.page_size_padded,
+            )
+            return tq4_spec
         return spec
 
     Attention.get_kv_cache_spec = _tq4_get_kv_cache_spec
