@@ -1312,4 +1312,41 @@ def register_tq4_backend() -> None:
         return spec
 
     Attention.get_kv_cache_spec = _tq4_get_kv_cache_spec
-    logger.info("TQ4 attention backend registered as CUSTOM (packed cache)")
+
+    # Patch unify_kv_cache_spec_page_size to handle TQ4's heterogeneous
+    # page sizes.  When pages aren't divisible, pad all specs to the max
+    # page size using page_size_padded.  This runs in ALL processes
+    # (workers + EngineCore) via the plugin entry point.
+    import vllm.v1.core.kv_cache_utils as _kv_utils
+    from dataclasses import replace as _dc_replace
+
+    _orig_unify = _kv_utils.unify_kv_cache_spec_page_size
+
+    def _tq4_unify_page_size(kv_cache_spec):
+        """Wrapper that pads TQ4 specs before standard unification."""
+        page_sizes = {s.page_size_bytes for s in kv_cache_spec.values()}
+        if len(page_sizes) <= 1:
+            return _orig_unify(kv_cache_spec)
+
+        max_page = max(page_sizes)
+
+        # Check if standard unification would work
+        all_divisible = all(max_page % ps == 0 for ps in page_sizes)
+        if all_divisible:
+            return _orig_unify(kv_cache_spec)
+
+        # Non-divisible: pad all specs to max page size
+        print(
+            f"[TQ4] Heterogeneous page sizes {sorted(page_sizes)} "
+            f"→ padding all to {max_page} via page_size_padded"
+        )
+        new_spec = {}
+        for name, spec in kv_cache_spec.items():
+            if spec.page_size_bytes < max_page:
+                spec = _dc_replace(spec, page_size_padded=max_page)
+            new_spec[name] = spec
+        return new_spec
+
+    _kv_utils.unify_kv_cache_spec_page_size = _tq4_unify_page_size
+
+    print("[TQ4] Backend registered + unify_kv_cache_spec_page_size patched")
