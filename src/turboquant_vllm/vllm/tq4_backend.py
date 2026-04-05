@@ -280,6 +280,16 @@ class TQ4AttentionBackend(FlashAttentionBackend):
         """Required for VLMs like Molmo2 with bidirectional visual tokens."""
         return True
 
+    @classmethod
+    def supports_head_size(cls, head_size: int) -> bool:
+        """TQ4 compression works for any even head_dim.
+
+        For head_dim <= 256, FA2 handles the attention computation.
+        For head_dim > 256 (e.g. Gemma 4 global layers at 512),
+        we fall back to torch SDPA after TQ4 decompression.
+        """
+        return head_size % 2 == 0
+
     @staticmethod
     def get_name() -> str:
         """Must return ``"CUSTOM"`` to match ``AttentionBackendEnum.CUSTOM``."""
@@ -442,6 +452,14 @@ class TQ4AttentionImpl(FlashAttentionImpl):
         self._max_model_len = (
             vllm_config.model_config.max_model_len if vllm_config is not None else 6144
         )
+
+        # SDPA fallback for head_dim > 256 (FA2 hard limit).
+        # Gemma 4 global attention layers use head_dim=512.
+        self._use_sdpa_fallback = head_size > 256
+        if self._use_sdpa_fallback:
+            # Disable fused kernels that assume FA2-compatible head dims
+            self._fused_paged_available = False
+            self._int8_prefill_available = False
 
         logger.info(
             "TQ4AttentionImpl: %d KV heads, head_size=%d, k_bits=%d, v_bits=%d, "
@@ -938,6 +956,74 @@ class TQ4AttentionImpl(FlashAttentionImpl):
 
         return output
 
+    # ----- SDPA fallback for head_dim > 256 (Gemma 4 global layers) -----
+
+    def _sdpa_attention(
+        self, q_rot, key_cache, value_cache, fa_block_table,
+        attn_metadata, output, layer,
+    ) -> torch.Tensor:
+        """SDPA fallback for layers where head_dim > 256 (FA2 limit).
+
+        After TQ4 decompress, key_cache/value_cache are already in
+        ``(num_blocks, block_size, H_kv, D)`` format.  We gather the
+        per-sequence KV, expand for GQA, and call torch SDPA.
+        """
+        import torch.nn.functional as F
+
+        num_actual = attn_metadata.num_actual_tokens
+        H_q = self.num_heads
+        H_kv = self.num_kv_heads
+        D = self.head_size
+        BS = key_cache.shape[1]  # block_size
+        gqa_ratio = H_q // H_kv
+
+        q_slice = q_rot[:num_actual]  # (N_tokens, H_q, D)
+        seq_lens = attn_metadata.seq_lens
+        cu_seqlens_q = attn_metadata.query_start_loc
+        num_seqs = seq_lens.shape[0]
+
+        out_buf = output[:num_actual]
+
+        for i in range(num_seqs):
+            # Query range for this sequence
+            q_start = cu_seqlens_q[i].item()
+            q_end = cu_seqlens_q[i + 1].item() if i + 1 < cu_seqlens_q.shape[0] else num_actual
+            q_len = q_end - q_start
+
+            # Gather KV from paged cache using block_table
+            s_len = seq_lens[i].item()
+            num_blocks_needed = (s_len + BS - 1) // BS
+            block_ids = fa_block_table[i, :num_blocks_needed]
+            # key_cache: (num_compact_blocks, BS, H_kv, D)
+            kv_tokens = key_cache[block_ids].reshape(-1, H_kv, D)[:s_len]  # (S, H_kv, D)
+            vv_tokens = value_cache[block_ids].reshape(-1, H_kv, D)[:s_len]  # (S, H_kv, D)
+
+            # Reshape to (1, H, S, D) for SDPA
+            q_i = q_slice[q_start:q_end].transpose(0, 1).unsqueeze(0)  # (1, H_q, q_len, D)
+            k_i = kv_tokens.transpose(0, 1).unsqueeze(0)  # (1, H_kv, S, D)
+            v_i = vv_tokens.transpose(0, 1).unsqueeze(0)  # (1, H_kv, S, D)
+
+            # Expand KV heads for GQA: repeat each KV head for its Q head group
+            if gqa_ratio > 1:
+                k_i = k_i.repeat_interleave(gqa_ratio, dim=1)  # (1, H_q, S, D)
+                v_i = v_i.repeat_interleave(gqa_ratio, dim=1)  # (1, H_q, S, D)
+
+            # SDPA — is_causal only for prefill (q_len > 1)
+            is_causal = q_len > 1 and q_len == s_len
+            attn_out = F.scaled_dot_product_attention(
+                q_i, k_i, v_i,
+                scale=self.scale,
+                is_causal=is_causal,
+            )  # (1, H_q, q_len, D)
+
+            out_buf[q_start:q_end] = attn_out.squeeze(0).transpose(0, 1)  # (q_len, H_q, D)
+
+        # Post-rotate output (same as FA2 path)
+        out_slice = output[:num_actual]
+        output[:num_actual] = (out_slice.float() @ self._tq4_rotation).to(out_slice.dtype)
+
+        return output
+
     # ----- forward -----
 
     def forward(
@@ -1026,7 +1112,13 @@ class TQ4AttentionImpl(FlashAttentionImpl):
                 query, key, value, kv_cache, attn_metadata
             )
 
-        # Step 4: Run Flash Attention with rotated Q and rotated KV
+        # Step 4: Run attention — SDPA fallback for head_dim > 256, else FA2
+        if self._use_sdpa_fallback:
+            return self._sdpa_attention(
+                q_rot, key_cache, value_cache, fa_block_table,
+                attn_metadata, output, layer,
+            )
+
         from vllm.v1.attention.backends.fa_utils import flash_attn_varlen_func
 
         if attn_metadata.use_cascade:
