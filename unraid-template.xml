@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>vllm-turboquant</Name>
+  <Repository>aalansari/vllm-turboquant:latest</Repository>
+  <Registry>https://hub.docker.com/r/aalansari/vllm-turboquant</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/aalansari/vllm-turboquant/issues</Support>
+  <Project>https://github.com/aalansari/vllm-turboquant</Project>
+  <Overview>vLLM OpenAI-compatible server with TurboQuant KV cache compression. Optimized for consumer GPUs (RTX 3060 12GB). Supports Qwen3.5-9B-AWQ and Google Gemma 4 E4B. TurboQuant compresses KV cache 2.7x, dramatically increasing context window on limited VRAM.</Overview>
+  <Category>AI: Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:8000]/docs</WebUI>
+  <Icon>https://raw.githubusercontent.com/vllm-project/vllm/main/docs/source/assets/logos/vllm-logo-text-light.png</Icon>
+  <ExtraParams>--runtime nvidia --gpus all --ipc=host</ExtraParams>
+  <Requires>Nvidia Driver plugin must be installed.</Requires>
+  <Description>vLLM with TurboQuant KV cache compression for maximum context on consumer GPUs.</Description>
+
+  <Config Name="API Port" Target="8000" Default="8000" Mode="tcp"
+          Type="Port" Display="always" Required="true"
+          Description="OpenAI-compatible API port">8000</Config>
+
+  <Config Name="HuggingFace Cache" Target="/root/.cache/huggingface" Default="/mnt/user/appdata/vllm-turboquant/hf-cache" Mode="rw"
+          Type="Path" Display="always" Required="true"
+          Description="Persistent model cache directory. Models download here on first launch (~5.5GB for Qwen3.5-9B-AWQ).">/mnt/user/appdata/vllm-turboquant/hf-cache</Config>
+
+  <Config Name="Model" Target="MODEL" Default="QuantTrio/Qwen3.5-9B-AWQ"
+          Type="Variable" Display="always" Required="true"
+          Description="HuggingFace model ID. Options: QuantTrio/Qwen3.5-9B-AWQ (Quantization=awq), google/gemma-4-E4B-it (Quantization=auto), lcu0312/gemma-4-26B-A4B-it-AWQ-4bit (Quantization=awq, use image tag :gemma4). For more context, use cyankiwi/Qwen3.5-4B-AWQ-4bit instead.">QuantTrio/Qwen3.5-9B-AWQ</Config>
+
+  <Config Name="Max Context Length" Target="MAX_MODEL_LEN" Default="24576"
+          Type="Variable" Display="always" Required="false"
+          Description="Maximum context window in tokens. Start at 24576 for 9B, push to 32768 if stable. Use 49152+ with 4B model. Reduce if OOM.">24576</Config>
+
+  <Config Name="TurboQuant Enabled" Target="TURBOQUANT" Default="true"
+          Type="Variable" Display="always" Required="false"
+          Description="Enable TurboQuant KV cache compression (2.7x). Set 'true' or 'false'.">true</Config>
+
+  <Config Name="TurboQuant Key Bits" Target="TQ4_K_BITS" Default="4"
+          Type="Variable" Display="advanced" Required="false"
+          Description="TurboQuant key quantization bits. 4=balanced, 3=more compression.">4</Config>
+
+  <Config Name="TurboQuant Value Bits" Target="TQ4_V_BITS" Default="4"
+          Type="Variable" Display="advanced" Required="false"
+          Description="TurboQuant value quantization bits. 4=balanced, 2=aggressive compression (3.5x).">4</Config>
+
+  <Config Name="Tensor Parallel Size" Target="TENSOR_PARALLEL" Default="2"
+          Type="Variable" Display="always" Required="false"
+          Description="Number of GPUs to split model across. Set 2 for dual GPU, 1 for single GPU.">2</Config>
+
+  <Config Name="Enable Thinking" Target="ENABLE_THINKING" Default="false"
+          Type="Variable" Display="always" Required="false"
+          Description="Enable Qwen3.5 thinking/reasoning mode. Set 'true' or 'false'.">false</Config>
+
+  <Config Name="GPU Memory Utilization" Target="GPU_MEMORY_UTIL" Default="0.90"
+          Type="Variable" Display="advanced" Required="false"
+          Description="Fraction of GPU VRAM to use (0.0-1.0). Higher = more context but risk of OOM.">0.90</Config>
+
+  <Config Name="Max Concurrent Sequences" Target="MAX_NUM_SEQS" Default="4"
+          Type="Variable" Display="advanced" Required="false"
+          Description="Maximum concurrent requests. Lower = more memory per request for longer context.">4</Config>
+
+  <Config Name="Quantization" Target="QUANTIZATION" Default="awq"
+          Type="Variable" Display="advanced" Required="false"
+          Description="Model weight quantization method. 'awq' for AWQ models, 'gptq' for GPTQ, 'auto' for base/unquantized models like Gemma 4 E4B.">awq</Config>
+
+  <Config Name="Data Type" Target="DTYPE" Default="half"
+          Type="Variable" Display="advanced" Required="false"
+          Description="Compute precision. 'half' (FP16) or 'bfloat16'. Both work on RTX 3060.">half</Config>
+
+  <Config Name="Extra Arguments" Target="EXTRA_ARGS" Default=""
+          Type="Variable" Display="advanced" Required="false"
+          Description="Additional vllm serve arguments (e.g. --disable-log-requests)."></Config>
+
+  <Config Name="HuggingFace Token" Target="HF_TOKEN" Default=""
+          Type="Variable" Display="advanced" Required="false" Mask="true"
+          Description="HuggingFace token for gated models. Not needed for Qwen3.5-9B-AWQ."></Config>
+</Container>
