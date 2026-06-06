@@ -1,0 +1,32 @@
+services:
+  vllm-turboquant:
+    image: aalansari/vllm-turboquant:gemma4
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VLLM_TAG: ${VLLM_TAG:-v0.19.0}
+        TRANSFORMERS_VERSION: ${TRANSFORMERS_VERSION:-5.5.0}
+    container_name: vllm-turboquant
+    runtime: nvidia
+    ipc: host
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    volumes:
+      - ${HF_CACHE_DIR:-/mnt/user/appdata/vllm-turboquant/hf-cache}:/root/.cache/huggingface
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      MODEL: ${MODEL:-lcu0312/gemma-4-26B-A4B-it-AWQ-4bit}
+      QUANTIZATION: ${QUANTIZATION:-awq}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-4096}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-4}
+      TENSOR_PARALLEL: ${TENSOR_PARALLEL:-2}
+      GPU_MEMORY_UTIL: ${GPU_MEMORY_UTIL:-0.85}
+      DTYPE: ${DTYPE:-half}
+      TURBOQUANT: ${TURBOQUANT:-true}
+      TQ4_K_BITS: ${TQ4_K_BITS:-4}
+      TQ4_V_BITS: ${TQ4_V_BITS:-4}
+      ENABLE_THINKING: ${ENABLE_THINKING:-false}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+      HF_TOKEN: ${HF_TOKEN:-}
